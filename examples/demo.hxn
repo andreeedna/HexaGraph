@@ -1,0 +1,1262 @@
+{
+  "format_version": 1,
+  "title": "HexaGraph demo",
+  "tables": [
+    {
+      "id": 1,
+      "name": "Dose-response",
+      "kind": "XY",
+      "x_title": "log[agonist], M",
+      "rows": 9,
+      "replicates": 2,
+      "row_titles": [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      "x": [
+        -9.0,
+        -8.5,
+        -8.0,
+        -7.5,
+        -7.0,
+        -6.5,
+        -6.0,
+        -5.5,
+        -5.0
+      ],
+      "datasets": [
+        {
+          "title": "Wild type",
+          "values": [
+            [
+              2.1,
+              3.0
+            ],
+            [
+              4.5,
+              5.9
+            ],
+            [
+              10.2,
+              12.0
+            ],
+            [
+              24.8,
+              22.1
+            ],
+            [
+              51.3,
+              48.0
+            ],
+            [
+              76.9,
+              79.5
+            ],
+            [
+              90.4,
+              88.2
+            ],
+            [
+              96.8,
+              97.5
+            ],
+            [
+              98.9,
+              99.6
+            ]
+          ]
+        },
+        {
+          "title": "Mutant",
+          "values": [
+            [
+              1.0,
+              1.8
+            ],
+            [
+              2.2,
+              1.5
+            ],
+            [
+              4.1,
+              3.6
+            ],
+            [
+              8.8,
+              10.1
+            ],
+            [
+              19.5,
+              22.0
+            ],
+            [
+              41.2,
+              38.7
+            ],
+            [
+              63.0,
+              66.1
+            ],
+            [
+              80.4,
+              82.2
+            ],
+            [
+              90.1,
+              88.0
+            ]
+          ]
+        }
+      ],
+      "notes": "",
+      "show_row_titles": false
+    },
+    {
+      "id": 4,
+      "name": "Enzyme activity",
+      "kind": "Column",
+      "x_title": "X",
+      "rows": 8,
+      "replicates": 1,
+      "row_titles": [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      "x": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "datasets": [
+        {
+          "title": "Control",
+          "values": [
+            [
+              23.1
+            ],
+            [
+              25.4
+            ],
+            [
+              21.8
+            ],
+            [
+              27.2
+            ],
+            [
+              24.5
+            ],
+            [
+              26.1
+            ],
+            [
+              22.9
+            ],
+            [
+              25.0
+            ]
+          ]
+        },
+        {
+          "title": "Treated",
+          "values": [
+            [
+              28.4
+            ],
+            [
+              30.1
+            ],
+            [
+              27.5
+            ],
+            [
+              31.6
+            ],
+            [
+              29.2
+            ],
+            [
+              26.8
+            ],
+            [
+              30.9
+            ],
+            [
+              29.7
+            ]
+          ]
+        },
+        {
+          "title": "Treated + inhibitor",
+          "values": [
+            [
+              24.0
+            ],
+            [
+              26.5
+            ],
+            [
+              25.1
+            ],
+            [
+              27.9
+            ],
+            [
+              23.8
+            ],
+            [
+              26.2
+            ],
+            [
+              25.5
+            ],
+            [
+              24.7
+            ]
+          ]
+        }
+      ],
+      "notes": "",
+      "show_row_titles": false
+    },
+    {
+      "id": 8,
+      "name": "Cytokine release",
+      "kind": "Grouped",
+      "x_title": "X",
+      "rows": 3,
+      "replicates": 3,
+      "row_titles": [
+        "Day 1",
+        "Day 3",
+        "Day 7"
+      ],
+      "x": [
+        null,
+        null,
+        null
+      ],
+      "datasets": [
+        {
+          "title": "Vehicle",
+          "values": [
+            [
+              12.0,
+              14.5,
+              13.1
+            ],
+            [
+              18.4,
+              20.1,
+              19.0
+            ],
+            [
+              25.2,
+              27.9,
+              26.4
+            ]
+          ]
+        },
+        {
+          "title": "Drug",
+          "values": [
+            [
+              11.2,
+              12.9,
+              13.4
+            ],
+            [
+              13.5,
+              14.8,
+              12.7
+            ],
+            [
+              15.1,
+              16.9,
+              14.4
+            ]
+          ]
+        }
+      ],
+      "notes": "",
+      "show_row_titles": true
+    },
+    {
+      "id": 10,
+      "name": "Treatment outcome",
+      "kind": "Contingency",
+      "x_title": "X",
+      "rows": 2,
+      "replicates": 1,
+      "row_titles": [
+        "Drug",
+        "Placebo",
+        "",
+        ""
+      ],
+      "x": [
+        null,
+        null
+      ],
+      "datasets": [
+        {
+          "title": "Recovered",
+          "values": [
+            [
+              42.0
+            ],
+            [
+              28.0
+            ]
+          ]
+        },
+        {
+          "title": "Not recovered",
+          "values": [
+            [
+              8.0
+            ],
+            [
+              22.0
+            ]
+          ]
+        }
+      ],
+      "notes": "",
+      "show_row_titles": true
+    },
+    {
+      "id": 12,
+      "name": "Survival study",
+      "kind": "Survival",
+      "x_title": "Days",
+      "rows": 16,
+      "replicates": 1,
+      "row_titles": [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      "x": [
+        5.0,
+        8.0,
+        12.0,
+        12.0,
+        15.0,
+        20.0,
+        22.0,
+        30.0,
+        3.0,
+        4.0,
+        7.0,
+        9.0,
+        10.0,
+        14.0,
+        16.0,
+        18.0
+      ],
+      "datasets": [
+        {
+          "title": "Standard",
+          "values": [
+            [
+              1.0
+            ],
+            [
+              1.0
+            ],
+            [
+              0.0
+            ],
+            [
+              1.0
+            ],
+            [
+              1.0
+            ],
+            [
+              0.0
+            ],
+            [
+              1.0
+            ],
+            [
+              0.0
+            ],
+            [
+              null
+            ],
+            [
+              null
+            ],
+            [
+              null
+            ],
+            [
+              null
+            ],
+            [
+              null
+            ],
+            [
+              null
+            ],
+            [
+              null
+            ],
+            [
+              null
+            ]
+          ]
+        },
+        {
+          "title": "New therapy",
+          "values": [
+            [
+              null
+            ],
+            [
+              null
+            ],
+            [
+              null
+            ],
+            [
+              null
+            ],
+            [
+              null
+            ],
+            [
+              null
+            ],
+            [
+              null
+            ],
+            [
+              null
+            ],
+            [
+              1.0
+            ],
+            [
+              1.0
+            ],
+            [
+              1.0
+            ],
+            [
+              0.0
+            ],
+            [
+              1.0
+            ],
+            [
+              1.0
+            ],
+            [
+              1.0
+            ],
+            [
+              1.0
+            ]
+          ]
+        }
+      ],
+      "notes": "",
+      "show_row_titles": false
+    },
+    {
+      "id": 14,
+      "name": "Cell populations",
+      "kind": "PartsOfWhole",
+      "x_title": "X",
+      "rows": 5,
+      "replicates": 1,
+      "row_titles": [
+        "T cells",
+        "B cells",
+        "NK cells",
+        "Monocytes",
+        "Other",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      "x": [
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "datasets": [
+        {
+          "title": "Count",
+          "values": [
+            [
+              48.0
+            ],
+            [
+              22.0
+            ],
+            [
+              11.0
+            ],
+            [
+              14.0
+            ],
+            [
+              5.0
+            ]
+          ]
+        }
+      ],
+      "notes": "",
+      "show_row_titles": true
+    }
+  ],
+  "analyses": [
+    {
+      "id": 2,
+      "table_id": 1,
+      "kind": {
+        "NonlinearFit": {
+          "model": "DoseResponseVariableSlope",
+          "fixed": []
+        }
+      },
+      "datasets": null,
+      "options": {
+        "alpha": 0.05,
+        "ci_level": 0.95,
+        "tails": "Two"
+      },
+      "excluded": []
+    },
+    {
+      "id": 5,
+      "table_id": 4,
+      "kind": "ColumnStatistics",
+      "datasets": null,
+      "options": {
+        "alpha": 0.05,
+        "ci_level": 0.95,
+        "tails": "Two"
+      },
+      "excluded": []
+    },
+    {
+      "id": 6,
+      "table_id": 4,
+      "kind": {
+        "OneWay": {
+          "test": "Ordinary",
+          "comparisons": "Tukey",
+          "control": null
+        }
+      },
+      "datasets": null,
+      "options": {
+        "alpha": 0.05,
+        "ci_level": 0.95,
+        "tails": "Two"
+      },
+      "excluded": []
+    },
+    {
+      "id": 9,
+      "table_id": 8,
+      "kind": {
+        "TwoWay": {
+          "comparisons": "Sidak",
+          "within_columns": false
+        }
+      },
+      "datasets": null,
+      "options": {
+        "alpha": 0.05,
+        "ci_level": 0.95,
+        "tails": "Two"
+      },
+      "excluded": []
+    },
+    {
+      "id": 11,
+      "table_id": 10,
+      "kind": {
+        "Contingency": {
+          "yates": false
+        }
+      },
+      "datasets": null,
+      "options": {
+        "alpha": 0.05,
+        "ci_level": 0.95,
+        "tails": "Two"
+      },
+      "excluded": []
+    },
+    {
+      "id": 13,
+      "table_id": 12,
+      "kind": {
+        "Survival": {
+          "gehan": false
+        }
+      },
+      "datasets": null,
+      "options": {
+        "alpha": 0.05,
+        "ci_level": 0.95,
+        "tails": "Two"
+      },
+      "excluded": []
+    },
+    {
+      "id": 15,
+      "table_id": 14,
+      "kind": "FractionOfTotal",
+      "datasets": null,
+      "options": {
+        "alpha": 0.05,
+        "ci_level": 0.95,
+        "tails": "Two"
+      },
+      "excluded": []
+    }
+  ],
+  "graphs": [
+    {
+      "id": 3,
+      "name": "Dose-response",
+      "table_id": 1,
+      "kind": "Xy",
+      "error_bar": "Sem",
+      "title": "",
+      "x_label": "",
+      "y_label": "Response (%)",
+      "x_scale": "Linear",
+      "y_scale": "Linear",
+      "y_min": null,
+      "y_max": null,
+      "show_points": true,
+      "connect_points": false,
+      "show_legend": true,
+      "palette": 0,
+      "width": 520.0,
+      "height": 400.0,
+      "marker_size": 4.0,
+      "line_width": 1.5,
+      "font_size": 13.0,
+      "overlay_analyses": [
+        2
+      ],
+      "brackets": [],
+      "auto_significance": {
+        "analysis": null,
+        "show_ns": false,
+        "style": "Stars",
+        "hidden": []
+      },
+      "transpose": false,
+      "colors": [],
+      "offsets": {
+        "title": [
+          0.0,
+          0.0
+        ],
+        "x_title": [
+          0.0,
+          0.0
+        ],
+        "y_title": [
+          0.0,
+          0.0
+        ],
+        "legend": [
+          0.0,
+          0.0
+        ]
+      },
+      "series_styles": [],
+      "texts": {
+        "title": {
+          "size": null,
+          "bold": null
+        },
+        "axis_titles": {
+          "size": null,
+          "bold": null
+        },
+        "tick_labels": {
+          "size": null,
+          "bold": null
+        },
+        "categories": {
+          "size": null,
+          "bold": null
+        },
+        "legend": {
+          "size": null,
+          "bold": null
+        },
+        "brackets": {
+          "size": null,
+          "bold": null
+        },
+        "data_labels": {
+          "size": null,
+          "bold": null
+        }
+      },
+      "bar_opacity": 0.45,
+      "bar_width": 0.7,
+      "cap_width": 1.0,
+      "error_up_only": false,
+      "bracket_offsets": [],
+      "widths": {
+        "axis": 1.5,
+        "error_bars": 1.5,
+        "bar_border": 1.5,
+        "symbol_border": 1.0,
+        "lines": 1.8,
+        "brackets": 1.3
+      },
+      "x_tick_angle": null,
+      "y_tick_angle": 0.0,
+      "bracket_tick": 1.0,
+      "bracket_gap": 1.0
+    },
+    {
+      "id": 7,
+      "name": "Enzyme activity",
+      "table_id": 4,
+      "kind": "ScatterDot",
+      "error_bar": "Sd",
+      "title": "",
+      "x_label": "",
+      "y_label": "Activity (U/mL)",
+      "x_scale": "Linear",
+      "y_scale": "Linear",
+      "y_min": null,
+      "y_max": null,
+      "show_points": true,
+      "connect_points": false,
+      "show_legend": true,
+      "palette": 0,
+      "width": 520.0,
+      "height": 400.0,
+      "marker_size": 4.0,
+      "line_width": 1.5,
+      "font_size": 13.0,
+      "overlay_analyses": [],
+      "brackets": [],
+      "auto_significance": {
+        "analysis": 6,
+        "show_ns": false,
+        "style": "Stars",
+        "hidden": []
+      },
+      "transpose": false,
+      "colors": [],
+      "offsets": {
+        "title": [
+          0.0,
+          0.0
+        ],
+        "x_title": [
+          0.0,
+          0.0
+        ],
+        "y_title": [
+          0.0,
+          0.0
+        ],
+        "legend": [
+          0.0,
+          0.0
+        ]
+      },
+      "series_styles": [],
+      "texts": {
+        "title": {
+          "size": null,
+          "bold": null
+        },
+        "axis_titles": {
+          "size": null,
+          "bold": null
+        },
+        "tick_labels": {
+          "size": null,
+          "bold": null
+        },
+        "categories": {
+          "size": null,
+          "bold": null
+        },
+        "legend": {
+          "size": null,
+          "bold": null
+        },
+        "brackets": {
+          "size": null,
+          "bold": null
+        },
+        "data_labels": {
+          "size": null,
+          "bold": null
+        }
+      },
+      "bar_opacity": 0.45,
+      "bar_width": 0.7,
+      "cap_width": 1.0,
+      "error_up_only": false,
+      "bracket_offsets": [],
+      "widths": {
+        "axis": 1.5,
+        "error_bars": 1.5,
+        "bar_border": 1.5,
+        "symbol_border": 1.0,
+        "lines": 1.8,
+        "brackets": 1.3
+      },
+      "x_tick_angle": null,
+      "y_tick_angle": 0.0,
+      "bracket_tick": 1.0,
+      "bracket_gap": 1.0
+    },
+    {
+      "id": 16,
+      "name": "Cytokine release",
+      "table_id": 8,
+      "kind": "GroupedBar",
+      "error_bar": "Sem",
+      "title": "",
+      "x_label": "",
+      "y_label": "",
+      "x_scale": "Linear",
+      "y_scale": "Linear",
+      "y_min": null,
+      "y_max": null,
+      "show_points": false,
+      "connect_points": false,
+      "show_legend": true,
+      "palette": 0,
+      "width": 520.0,
+      "height": 400.0,
+      "marker_size": 4.0,
+      "line_width": 1.5,
+      "font_size": 13.0,
+      "overlay_analyses": [],
+      "brackets": [],
+      "auto_significance": {
+        "analysis": null,
+        "show_ns": false,
+        "style": "Stars",
+        "hidden": []
+      },
+      "transpose": false,
+      "colors": [],
+      "offsets": {
+        "title": [
+          0.0,
+          0.0
+        ],
+        "x_title": [
+          0.0,
+          0.0
+        ],
+        "y_title": [
+          0.0,
+          0.0
+        ],
+        "legend": [
+          0.0,
+          0.0
+        ]
+      },
+      "series_styles": [],
+      "texts": {
+        "title": {
+          "size": null,
+          "bold": null
+        },
+        "axis_titles": {
+          "size": null,
+          "bold": null
+        },
+        "tick_labels": {
+          "size": null,
+          "bold": null
+        },
+        "categories": {
+          "size": null,
+          "bold": null
+        },
+        "legend": {
+          "size": null,
+          "bold": null
+        },
+        "brackets": {
+          "size": null,
+          "bold": null
+        },
+        "data_labels": {
+          "size": null,
+          "bold": null
+        }
+      },
+      "bar_opacity": 0.45,
+      "bar_width": 0.7,
+      "cap_width": 1.0,
+      "error_up_only": false,
+      "bracket_offsets": [],
+      "widths": {
+        "axis": 1.5,
+        "error_bars": 1.5,
+        "bar_border": 1.5,
+        "symbol_border": 1.0,
+        "lines": 1.8,
+        "brackets": 1.3
+      },
+      "x_tick_angle": null,
+      "y_tick_angle": 0.0,
+      "bracket_tick": 1.0,
+      "bracket_gap": 1.0
+    },
+    {
+      "id": 17,
+      "name": "Treatment outcome",
+      "table_id": 10,
+      "kind": "GroupedBar",
+      "error_bar": "Sem",
+      "title": "",
+      "x_label": "",
+      "y_label": "",
+      "x_scale": "Linear",
+      "y_scale": "Linear",
+      "y_min": null,
+      "y_max": null,
+      "show_points": false,
+      "connect_points": false,
+      "show_legend": true,
+      "palette": 0,
+      "width": 520.0,
+      "height": 400.0,
+      "marker_size": 4.0,
+      "line_width": 1.5,
+      "font_size": 13.0,
+      "overlay_analyses": [],
+      "brackets": [],
+      "auto_significance": {
+        "analysis": null,
+        "show_ns": false,
+        "style": "Stars",
+        "hidden": []
+      },
+      "transpose": false,
+      "colors": [],
+      "offsets": {
+        "title": [
+          0.0,
+          0.0
+        ],
+        "x_title": [
+          0.0,
+          0.0
+        ],
+        "y_title": [
+          0.0,
+          0.0
+        ],
+        "legend": [
+          0.0,
+          0.0
+        ]
+      },
+      "series_styles": [],
+      "texts": {
+        "title": {
+          "size": null,
+          "bold": null
+        },
+        "axis_titles": {
+          "size": null,
+          "bold": null
+        },
+        "tick_labels": {
+          "size": null,
+          "bold": null
+        },
+        "categories": {
+          "size": null,
+          "bold": null
+        },
+        "legend": {
+          "size": null,
+          "bold": null
+        },
+        "brackets": {
+          "size": null,
+          "bold": null
+        },
+        "data_labels": {
+          "size": null,
+          "bold": null
+        }
+      },
+      "bar_opacity": 0.45,
+      "bar_width": 0.7,
+      "cap_width": 1.0,
+      "error_up_only": false,
+      "bracket_offsets": [],
+      "widths": {
+        "axis": 1.5,
+        "error_bars": 1.5,
+        "bar_border": 1.5,
+        "symbol_border": 1.0,
+        "lines": 1.8,
+        "brackets": 1.3
+      },
+      "x_tick_angle": null,
+      "y_tick_angle": 0.0,
+      "bracket_tick": 1.0,
+      "bracket_gap": 1.0
+    },
+    {
+      "id": 18,
+      "name": "Survival study",
+      "table_id": 12,
+      "kind": "Survival",
+      "error_bar": "Sem",
+      "title": "",
+      "x_label": "",
+      "y_label": "Percent survival",
+      "x_scale": "Linear",
+      "y_scale": "Linear",
+      "y_min": null,
+      "y_max": null,
+      "show_points": false,
+      "connect_points": false,
+      "show_legend": true,
+      "palette": 0,
+      "width": 520.0,
+      "height": 400.0,
+      "marker_size": 4.0,
+      "line_width": 1.5,
+      "font_size": 13.0,
+      "overlay_analyses": [],
+      "brackets": [],
+      "auto_significance": {
+        "analysis": null,
+        "show_ns": false,
+        "style": "Stars",
+        "hidden": []
+      },
+      "transpose": false,
+      "colors": [],
+      "offsets": {
+        "title": [
+          0.0,
+          0.0
+        ],
+        "x_title": [
+          0.0,
+          0.0
+        ],
+        "y_title": [
+          0.0,
+          0.0
+        ],
+        "legend": [
+          0.0,
+          0.0
+        ]
+      },
+      "series_styles": [],
+      "texts": {
+        "title": {
+          "size": null,
+          "bold": null
+        },
+        "axis_titles": {
+          "size": null,
+          "bold": null
+        },
+        "tick_labels": {
+          "size": null,
+          "bold": null
+        },
+        "categories": {
+          "size": null,
+          "bold": null
+        },
+        "legend": {
+          "size": null,
+          "bold": null
+        },
+        "brackets": {
+          "size": null,
+          "bold": null
+        },
+        "data_labels": {
+          "size": null,
+          "bold": null
+        }
+      },
+      "bar_opacity": 0.45,
+      "bar_width": 0.7,
+      "cap_width": 1.0,
+      "error_up_only": false,
+      "bracket_offsets": [],
+      "widths": {
+        "axis": 1.5,
+        "error_bars": 1.5,
+        "bar_border": 1.5,
+        "symbol_border": 1.0,
+        "lines": 1.8,
+        "brackets": 1.3
+      },
+      "x_tick_angle": null,
+      "y_tick_angle": 0.0,
+      "bracket_tick": 1.0,
+      "bracket_gap": 1.0
+    },
+    {
+      "id": 19,
+      "name": "Cell populations",
+      "table_id": 14,
+      "kind": "Pie",
+      "error_bar": "Sem",
+      "title": "",
+      "x_label": "",
+      "y_label": "",
+      "x_scale": "Linear",
+      "y_scale": "Linear",
+      "y_min": null,
+      "y_max": null,
+      "show_points": false,
+      "connect_points": false,
+      "show_legend": true,
+      "palette": 0,
+      "width": 520.0,
+      "height": 400.0,
+      "marker_size": 4.0,
+      "line_width": 1.5,
+      "font_size": 13.0,
+      "overlay_analyses": [],
+      "brackets": [],
+      "auto_significance": {
+        "analysis": null,
+        "show_ns": false,
+        "style": "Stars",
+        "hidden": []
+      },
+      "transpose": false,
+      "colors": [],
+      "offsets": {
+        "title": [
+          0.0,
+          0.0
+        ],
+        "x_title": [
+          0.0,
+          0.0
+        ],
+        "y_title": [
+          0.0,
+          0.0
+        ],
+        "legend": [
+          0.0,
+          0.0
+        ]
+      },
+      "series_styles": [],
+      "texts": {
+        "title": {
+          "size": null,
+          "bold": null
+        },
+        "axis_titles": {
+          "size": null,
+          "bold": null
+        },
+        "tick_labels": {
+          "size": null,
+          "bold": null
+        },
+        "categories": {
+          "size": null,
+          "bold": null
+        },
+        "legend": {
+          "size": null,
+          "bold": null
+        },
+        "brackets": {
+          "size": null,
+          "bold": null
+        },
+        "data_labels": {
+          "size": null,
+          "bold": null
+        }
+      },
+      "bar_opacity": 0.45,
+      "bar_width": 0.7,
+      "cap_width": 1.0,
+      "error_up_only": false,
+      "bracket_offsets": [],
+      "widths": {
+        "axis": 1.5,
+        "error_bars": 1.5,
+        "bar_border": 1.5,
+        "symbol_border": 1.0,
+        "lines": 1.8,
+        "brackets": 1.3
+      },
+      "x_tick_angle": null,
+      "y_tick_angle": 0.0,
+      "bracket_tick": 1.0,
+      "bracket_gap": 1.0
+    }
+  ],
+  "next_id": 20,
+  "notes": ""
+}

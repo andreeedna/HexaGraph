@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <!-- HexaGraph logo: a faceted hexagon with a rising chart line. -->
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#5b7cfa"/>
+      <stop offset="1" stop-color="#7a3cf0"/>
+    </linearGradient>
+  </defs>
+  <polygon points="128,8 232,68 232,188 128,248 24,188 24,68" fill="url(#g)"/>
+  <polygon points="128,128 128,8 232,68" fill="#ffffff" fill-opacity="0.16"/>
+  <polygon points="128,128 232,68 232,188" fill="#ffffff" fill-opacity="0.06"/>
+  <polygon points="128,128 128,248 24,188" fill="#000000" fill-opacity="0.12"/>
+  <polygon points="128,128 24,188 24,68" fill="#000000" fill-opacity="0.04"/>
+  <polyline points="62,172 104,132 142,150 194,88" fill="none" stroke="#ffffff" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="62" cy="172" r="13" fill="#ffffff"/>
+  <circle cx="104" cy="132" r="13" fill="#ffffff"/>
+  <circle cx="142" cy="150" r="13" fill="#ffffff"/>
+  <circle cx="194" cy="88" r="13" fill="#ffffff"/>
+</svg>

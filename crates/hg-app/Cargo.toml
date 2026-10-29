@@ -1,0 +1,25 @@
+[package]
+name = "hexagraph"
+description = "HexaGraph: open-source scientific graphing and statistics"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "hexagraph"
+path = "src/main.rs"
+
+[dependencies]
+hg-core.workspace = true
+hg-plot.workspace = true
+hg-stats.workspace = true
+serde_json.workspace = true
+eframe = { version = "0.31.1", default-features = false, features = ["default_fonts", "glow", "wayland", "x11", "persistence"] }
+egui_extras = { version = "0.31.1", features = ["svg"] }
+rfd = "0.15.3"
+arboard = { version = "3.4.1", default-features = false }
+resvg = "0.45.1"
+image = { version = "0.25.6", default-features = false, features = ["png", "jpeg", "tiff"] }
+
+[lints]
+workspace = true

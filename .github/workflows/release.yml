@@ -1,0 +1,134 @@
+name: Release
+# Push a tag like v0.1.0 to build HexaGraph for Windows, macOS and Linux and
+# publish a GitHub Release with the downloads. "Run workflow" in the Actions
+# tab builds the same files as artifacts without publishing a release.
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    env:
+      # Bundle the C runtime: a fresh Windows may lack VCRUNTIME140.dll.
+      RUSTFLAGS: -C target-feature=+crt-static
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo build --release -p hexagraph
+      - shell: bash
+        run: |
+          mkdir -p dist/HexaGraph
+          cp target/release/hexagraph.exe dist/HexaGraph/HexaGraph.exe
+          cp LICENSE examples/demo.hxn dist/HexaGraph/
+          cd dist && 7z a ../HexaGraph-windows-x64.zip HexaGraph
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: HexaGraph-windows-x64.zip
+
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+      - run: |
+          cargo build --release -p hexagraph --target aarch64-apple-darwin
+          cargo build --release -p hexagraph --target x86_64-apple-darwin
+      # One universal app for Apple silicon and Intel Macs.
+      - run: |
+          APP=dist/HexaGraph.app/Contents
+          mkdir -p $APP/MacOS $APP/Resources
+          lipo -create -output $APP/MacOS/hexagraph \
+            target/aarch64-apple-darwin/release/hexagraph target/x86_64-apple-darwin/release/hexagraph
+          mkdir icon.iconset
+          for s in 16 32 128 256 512; do
+            sips -z $s $s assets/icon.png --out icon.iconset/icon_${s}x${s}.png
+            sips -z $((s * 2)) $((s * 2)) assets/icon.png --out icon.iconset/icon_${s}x${s}@2x.png
+          done
+          iconutil -c icns icon.iconset -o $APP/Resources/HexaGraph.icns
+          VERSION=$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2)
+          cat > $APP/Info.plist <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+            <key>CFBundleName</key><string>HexaGraph</string>
+            <key>CFBundleDisplayName</key><string>HexaGraph</string>
+            <key>CFBundleIdentifier</key><string>org.hexagraph.HexaGraph</string>
+            <key>CFBundleExecutable</key><string>hexagraph</string>
+            <key>CFBundleIconFile</key><string>HexaGraph</string>
+            <key>CFBundlePackageType</key><string>APPL</string>
+            <key>CFBundleShortVersionString</key><string>$VERSION</string>
+            <key>CFBundleVersion</key><string>$VERSION</string>
+            <key>LSMinimumSystemVersion</key><string>11.0</string>
+            <key>NSHighResolutionCapable</key><true/>
+          </dict></plist>
+          EOF
+          # Ad-hoc signature: required to run on Apple silicon (the app is not notarized).
+          codesign --force --deep --sign - dist/HexaGraph.app
+          cp examples/demo.hxn dist/
+          ditto -c -k dist HexaGraph-macos-universal.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos
+          path: HexaGraph-macos-universal.zip
+
+  linux:
+    # The oldest supported runner keeps the glibc requirement low, so the
+    # binary runs on most distributions.
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo build --release -p hexagraph
+      - run: |
+          D=dist/HexaGraph
+          mkdir -p $D
+          cp target/release/hexagraph assets/icon.png LICENSE examples/demo.hxn $D/
+          cat > $D/hexagraph.desktop <<'EOF'
+          [Desktop Entry]
+          Type=Application
+          Name=HexaGraph
+          Comment=Scientific graphing and statistics
+          Exec=hexagraph %f
+          Icon=hexagraph
+          Categories=Science;Education;Math;
+          EOF
+          cat > $D/install.sh <<'EOF'
+          #!/bin/sh
+          # Installs HexaGraph for the current user (~/.local).
+          set -e
+          cd "$(dirname "$0")"
+          install -Dm755 hexagraph ~/.local/bin/hexagraph
+          install -Dm644 icon.png ~/.local/share/icons/hexagraph.png
+          mkdir -p ~/.local/share/applications
+          # Full paths: ~/.local/bin is not always on the desktop session's PATH.
+          sed -e "s|^Exec=hexagraph|Exec=$HOME/.local/bin/hexagraph|" -e "s|^Icon=hexagraph|Icon=$HOME/.local/share/icons/hexagraph.png|" \
+            hexagraph.desktop > ~/.local/share/applications/hexagraph.desktop
+          echo "HexaGraph installed: find it in your applications menu, or run 'hexagraph'."
+          EOF
+          chmod +x $D/install.sh
+          tar -C dist -czf HexaGraph-linux-x64.tar.gz HexaGraph
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux
+          path: HexaGraph-linux-x64.tar.gz
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [windows, macos, linux]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --title "HexaGraph $GITHUB_REF_NAME" --generate-notes \
+            HexaGraph-windows-x64.zip HexaGraph-macos-universal.zip HexaGraph-linux-x64.tar.gz

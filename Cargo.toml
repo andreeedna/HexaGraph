@@ -1,0 +1,31 @@
+[workspace]
+resolver = "2"
+members = ["crates/hg-stats", "crates/hg-core", "crates/hg-plot", "crates/hg-app"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "GPL-3.0-or-later"
+repository = "https://github.com/andreeedna/HexaGraph"
+authors = ["HexaGraph contributors"]
+
+[workspace.dependencies]
+hg-stats = { path = "crates/hg-stats" }
+hg-core = { path = "crates/hg-core" }
+hg-plot = { path = "crates/hg-plot" }
+statrs = "0.17.1"
+serde = { version = "1.0.210", features = ["derive"] }
+serde_json = "1.0.128"
+thiserror = "1.0.64"
+
+[profile.release]
+lto = "thin"
+
+[workspace.lints.clippy]
+# Index loops read more naturally in the numerical code.
+needless_range_loop = "allow"
+# `!(a > b)` is used on purpose so that NaN takes the fallback branch.
+neg_cmp_op_on_partial_ord = "allow"
+type_complexity = "allow"
+# Statistical routines naturally take many numeric inputs.
+too_many_arguments = "allow"
