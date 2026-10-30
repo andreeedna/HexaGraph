@@ -144,6 +144,34 @@ impl DataTable {
         }
     }
 
+    /// Changes the kind of table keeping every value. A kind without
+    /// replicates gets one row per value (row by row, replicate by
+    /// replicate); X values and row titles stay, hidden if the kind has none.
+    /// Returns the old number of replicates when the rows were spread out.
+    pub fn set_kind(&mut self, kind: TableKind) -> Option<usize> {
+        let reps = self.replicates;
+        let spread = !kind.allows_replicates() && reps > 1;
+        if spread {
+            for d in &mut self.datasets {
+                d.values = d.values.iter().flatten().map(|v| vec![*v]).collect();
+            }
+            self.x = self.x.iter().flat_map(|&x| std::iter::once(x).chain(std::iter::repeat_n(None, reps - 1))).collect();
+            self.row_titles = self
+                .row_titles
+                .iter()
+                .flat_map(|t| std::iter::once(t.clone()).chain(std::iter::repeat_n(String::new(), reps - 1)))
+                .collect();
+            self.rows *= reps;
+            self.replicates = 1;
+            self.excluded = self.excluded.iter().map(|&(d, r, k)| (d, r * reps + k, 0)).collect();
+        }
+        if self.x_title.is_empty() || self.x_title == self.kind.x_header() {
+            self.x_title = kind.x_header().to_string();
+        }
+        self.kind = kind;
+        spread.then_some(reps)
+    }
+
     /// Makes the sizes of a table read from a file consistent, so a damaged or
     /// hand-edited file cannot crash the sheet. Never drops a value: the
     /// table grows to the longest part and the rest is padded with empty cells.
@@ -536,6 +564,14 @@ mod tests {
         assert_eq!(t.complete_rows(&[0, 1]).len(), 2);
         assert_eq!(dataset_letter(26), "AA");
         assert_eq!(parse_number("1,5"), Some(1.5));
+        let mut g = DataTable::new(6, "g", TableKind::Grouped, 1, 2, 2);
+        for (r, k, v) in [(0, 0, 1.0), (0, 1, 2.0), (1, 0, 3.0), (1, 1, 4.0)] {
+            g.set(r, GridColumn::Value { dataset: 0, replicate: k }, Some(v));
+        }
+        g.excluded.push((0, 1, 1));
+        assert_eq!(g.set_kind(TableKind::Column), Some(2));
+        assert_eq!(g.datasets[0].values, vec![vec![Some(1.0)], vec![Some(2.0)], vec![Some(3.0)], vec![Some(4.0)]]);
+        assert_eq!((g.rows, g.x.len(), g.row_titles.len(), g.excluded.clone()), (4, 4, 4, vec![(0, 3, 0)]));
         assert_eq!(parse_number("1.234,5"), Some(1234.5));
         assert_eq!(parse_number("1,234.5"), Some(1234.5));
         // One spreadsheet column with decimal commas stays one column.

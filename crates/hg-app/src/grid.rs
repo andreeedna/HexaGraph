@@ -314,6 +314,7 @@ fn group_sep(ui: &mut egui::Ui) {
 fn toolbar(app: &mut App, ui: &mut egui::Ui, id: u64) -> Option<Command> {
     let p = theme::pal();
     let mut cmd = None;
+    let mut new_kind = None;
     let t = app.project.table_mut(id)?;
     ui.horizontal(|ui| {
         icons::paint(
@@ -324,7 +325,20 @@ fn toolbar(app: &mut App, ui: &mut egui::Ui, id: u64) -> Option<Command> {
         );
         ui.add_space(28.0);
         ui.add(egui::TextEdit::singleline(&mut t.name).font(theme::bold(20.0)).frame(false).desired_width(320.0));
-        ui.label(RichText::new(format!("{} table", t.kind.label())).color(p.weak));
+        // The kind can change at any time: the values stay (see DataTable::set_kind).
+        egui::ComboBox::from_id_salt(("kind", id))
+            .selected_text(format!("{} table", t.kind.label()))
+            .show_ui(ui, |ui| {
+                for k in TableKind::ALL {
+                    if ui.selectable_label(t.kind == k, format!("{} table", k.label())).on_hover_text(k.description()).clicked()
+                        && t.kind != k
+                    {
+                        new_kind = Some(k);
+                    }
+                }
+            })
+            .response
+            .on_hover_text("Change the kind of table: the values are kept");
     });
     ui.add_space(4.0);
     egui::Frame::new()
@@ -405,6 +419,11 @@ fn toolbar(app: &mut App, ui: &mut egui::Ui, id: u64) -> Option<Command> {
         });
     ui.label(RichText::new(hint(t.kind)).small().color(p.weak));
     ui.add_space(4.0);
+    if let Some(k) = new_kind {
+        app.project.set_table_kind(id, k);
+        app.grid = Default::default();
+        app.status = format!("Changed to a {} table; the values were kept", k.label());
+    }
     cmd
 }
 

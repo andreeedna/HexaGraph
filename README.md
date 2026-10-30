@@ -85,6 +85,23 @@ XY · Column · Grouped (two factors, with replicates) · Contingency · Surviva
 Parts of whole. Paste blocks from a spreadsheet, import CSV/TSV, exclude values
 from every analysis or from one analysis only, undo and redo everything.
 
+### Working with many tables and graphs
+* **Change the kind of a table at any time** (XY, Column, Grouped, …) from the
+  menu next to its name: the values are kept, replicates become rows when the
+  new kind has none.
+* **Duplicate a family**: right-click a table (or anything in the *Family*
+  box) and duplicate the data with its analyses and graphs, or the data only;
+  analyses and graphs can be duplicated one by one too.
+* **Drag and drop** a HexaGraph (`.hxn`) or Prism (`.pzfx`, `.prism`) file on
+  the window to add its tables, analyses and graphs to the open project.
+* **Apply a look to several graphs at once**, even in different families:
+  colors, symbols, fonts, lines and sizes are copied, data and titles stay.
+  Looks can be saved, reused in every project, and shared as `.hxlook` files.
+* **10 palettes of 8 colors** in one list. Use a whole palette, start it from
+  any of its colors, or click colors one by one to give each data set its own.
+* `.hxn` files have their own icon in Windows Explorer, the macOS Finder and
+  Linux file managers (after `install.sh`).
+
 ### Statistics
 Every method is implemented from the published literature and tested against
 reference values computed with **R** and **SciPy** (`cargo test`).

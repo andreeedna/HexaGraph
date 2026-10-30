@@ -61,20 +61,6 @@ impl Harmony {
     }
 }
 
-/// Extra preset palettes, on top of the built-in graph palettes.
-const PRESETS: [(&str, [[u8; 3]; 6]); 7] = [
-    ("Viridis", [[0x44, 0x01, 0x54], [0x41, 0x44, 0x87], [0x2a, 0x78, 0x8e], [0x22, 0xa8, 0x84], [0x7a, 0xd1, 0x51], [0xfd, 0xe7, 0x25]]),
-    ("Pastel", [[0xa6, 0xce, 0xe3], [0xfb, 0x9a, 0x99], [0xb2, 0xdf, 0x8a], [0xfd, 0xbf, 0x6f], [0xca, 0xb2, 0xd6], [0xff, 0xff, 0x99]]),
-    ("Bold", [[0xe4, 0x1a, 0x1c], [0x37, 0x7e, 0xb8], [0x4d, 0xaf, 0x4a], [0x98, 0x4e, 0xa3], [0xff, 0x7f, 0x00], [0xa6, 0x56, 0x28]]),
-    ("Nature", [[0x35, 0x5e, 0x3b], [0x8a, 0xb0, 0x7d], [0xc9, 0xa2, 0x27], [0x8c, 0x5a, 0x3c], [0x5b, 0x8e, 0xa6], [0xd9, 0x8c, 0x5f]]),
-    ("Ocean", [[0x03, 0x04, 0x5e], [0x02, 0x3e, 0x8a], [0x00, 0x77, 0xb6], [0x00, 0xb4, 0xd8], [0x48, 0xca, 0xe4], [0x90, 0xe0, 0xef]]),
-    ("Sunset", [[0x35, 0x50, 0x70], [0x6d, 0x59, 0x7a], [0xb5, 0x65, 0x76], [0xe5, 0x6b, 0x6f], [0xea, 0xac, 0x8b], [0xf3, 0xd9, 0xb1]]),
-    (
-        "Monochrome blue",
-        [[0x08, 0x30, 0x6b], [0x08, 0x51, 0x9c], [0x21, 0x71, 0xb5], [0x42, 0x92, 0xc6], [0x6b, 0xae, 0xd6], [0x9e, 0xca, 0xe1]],
-    ),
-];
-
 pub struct ColorWindow {
     graph_id: u64,
     series: usize,
@@ -336,6 +322,8 @@ pub fn color_window(app: &mut App, ctx: &egui::Context) {
     let mut open = true;
     let mut changed = false;
     let mut apply_many: Option<Vec<[u8; 3]>> = None;
+    let mut use_palette: Option<usize> = None;
+    let mut pick: Option<[u8; 3]> = None;
     let mut reset = false;
     egui::Window::new("Colors")
         .open(&mut open)
@@ -447,8 +435,6 @@ pub fn color_window(app: &mut App, ctx: &egui::Context) {
                     }
                 }
                 Mode::Palettes => {
-                    let builtin = hg_plot::PALETTES.iter().map(|(n, cols)| (*n, cols.iter().map(|c| [c.r, c.g, c.b]).collect::<Vec<_>>()));
-                    let extra = PRESETS.iter().map(|(n, cols)| (*n, cols.to_vec()));
                     let current: Vec<[u8; 3]> = (0..names.len()).map(|i| series_color(&app.project, w.graph_id, i)).collect();
                     ui.label(RichText::new("MY PALETTES").font(crate::theme::bold(11.5)).color(crate::theme::pal().weak));
                     let mut remove = None;
@@ -483,15 +469,22 @@ pub fn color_window(app: &mut App, ctx: &egui::Context) {
                     });
                     ui.add_space(6.0);
                     ui.label(RichText::new("BUILT-IN").font(crate::theme::bold(11.5)).color(crate::theme::pal().weak));
+                    ui.label(
+                        RichText::new(format!("Click a name to use the whole palette, or click colors one by one: each goes to “{}”, then to the next data set.", names[w.series]))
+                            .small()
+                            .weak(),
+                    );
                     egui::ScrollArea::vertical().max_height(260.0).show(ui, |ui| {
-                        for (name, cols) in builtin.chain(extra) {
+                        for (k, (name, cols)) in hg_plot::PALETTES.iter().enumerate() {
                             ui.horizontal(|ui| {
-                                let resp = ui.add(egui::Button::new(name).min_size(Vec2::new(130.0, 24.0)));
-                                for c in cols.iter().take(8) {
-                                    swatch(ui, *c, 20.0, false);
+                                if ui.add(egui::Button::new(*name).min_size(Vec2::new(130.0, 24.0))).clicked() {
+                                    use_palette = Some(k);
                                 }
-                                if resp.clicked() {
-                                    apply_many = Some((0..names.len()).map(|i| cols[i % cols.len()]).collect());
+                                for c in cols.iter() {
+                                    let rgb = [c.r, c.g, c.b];
+                                    if swatch(ui, rgb, 20.0, false).on_hover_text(hex_of(rgb)).clicked() {
+                                        pick = Some(rgb);
+                                    }
                                 }
                             });
                         }
@@ -519,6 +512,18 @@ pub fn color_window(app: &mut App, ctx: &egui::Context) {
         if let Some(g) = app.project.graphs.iter_mut().find(|g| g.id == w.graph_id) {
             g.colors = cols;
         }
+        w.loaded = None;
+    }
+    if let Some(k) = use_palette {
+        if let Some(g) = app.project.graphs.iter_mut().find(|g| g.id == w.graph_id) {
+            g.palette = k;
+            g.colors.clear();
+        }
+        w.loaded = None;
+    }
+    if let Some(rgb) = pick {
+        set_series_color(&mut app.project, w.graph_id, w.series, rgb);
+        w.series = (w.series + 1) % names.len();
         w.loaded = None;
     }
     if reset {

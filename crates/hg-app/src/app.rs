@@ -5,13 +5,16 @@ use crate::{icons, theme};
 use eframe::egui::{self, Color32, RichText};
 use hg_core::{AnalysisOutput, Project};
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 /// Actions that discard the current project, so they ask to save it first.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Pending {
     New,
     Open,
+    /// Open `App::open_file` (a file opened from the Finder).
+    #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+    OpenFile,
     Close,
 }
 
@@ -35,6 +38,9 @@ pub struct App {
     pub gallery: Option<GraphGallery>,
     pub colors: Option<crate::colors::ColorWindow>,
     pub export: Option<crate::graph_view::ExportWindow>,
+    pub styles: Option<crate::graph_view::StyleWindow>,
+    /// File waiting to be opened once unsaved changes are dealt with.
+    pub open_file: Option<PathBuf>,
     /// Tool selected in the graph editor's tool strip.
     pub graph_tool: crate::graph_view::Tool,
     pub grid: crate::grid::GridState,
@@ -55,6 +61,8 @@ pub struct App {
     pub dark: bool,
     /// Color palettes saved by the user (kept across sessions).
     pub user_palettes: Vec<(String, Vec<[u8; 3]>)>,
+    /// Saved graph looks (name, graph whose style is copied), kept between sessions.
+    pub user_styles: Vec<(String, hg_core::Graph)>,
     /// Notes about the last Prism import: (file, notes).
     import_notes: Option<(String, Vec<String>)>,
 }
@@ -68,6 +76,7 @@ impl App {
         let mut app = App {
             dark,
             user_palettes: Vec::new(),
+            user_styles: Vec::new(),
             import_notes: None,
             project: Project::default(),
             path: None,
@@ -79,6 +88,8 @@ impl App {
             gallery: None,
             colors: None,
             export: None,
+            styles: None,
+            open_file: None,
             graph_tool: Default::default(),
             grid: Default::default(),
             status: String::new(),
@@ -124,6 +135,8 @@ impl App {
                 "style" => self.graph_tool = Tool::Style,
                 "colors" => self.colors = Some(crate::colors::ColorWindow::new(g)),
                 "export" => self.export = Some(crate::graph_view::ExportWindow::new(g)),
+                "palettes" => self.graph_tool = Tool::Colors,
+                "looks" => self.styles = Some(crate::graph_view::StyleWindow::new(&self.project, g)),
                 _ => {}
             }
         }
@@ -273,17 +286,60 @@ impl App {
     }
 
     /// Imports the data tables of a Prism XML file into a new, unsaved project.
-    fn import_prism(&mut self, p: PathBuf) {
-        let bytes = match std::fs::read(&p) {
-            Ok(b) => b,
-            Err(e) => {
-                self.status = format!("Could not read {}: {e}", p.display());
-                return;
+    /// Reads a Prism file into a project with the notes about what was adapted.
+    fn read_prism(p: &Path) -> Result<hg_core::pzfx::Imported, String> {
+        let bytes = std::fs::read(p).map_err(|e| e.to_string())?;
+        if p.extension().is_some_and(|e| e.eq_ignore_ascii_case("pzfx")) {
+            hg_core::pzfx::import(&String::from_utf8_lossy(&bytes))
+        } else {
+            hg_core::prism::import(&bytes)
+        }
+    }
+
+    /// Files dropped on the window: their tables, analyses and graphs are
+    /// added to the open project (HexaGraph or Prism files).
+    fn drop_files(&mut self, ctx: &egui::Context) {
+        let paths: Vec<PathBuf> = ctx.input(|i| i.raw.dropped_files.iter().filter_map(|f| f.path.clone()).collect());
+        for p in paths {
+            let ext = p.extension().map(|e| e.to_string_lossy().to_lowercase()).unwrap_or_default();
+            let read = match ext.as_str() {
+                "hxn" | "hxg" => Project::load(&p).map(|proj| (proj, Vec::new())).map_err(|e| e.to_string()),
+                "pzfx" | "prism" => Self::read_prism(&p).map(|i| (i.project, i.warnings)),
+                _ => Err("only HexaGraph (.hxn) and Prism (.pzfx, .prism) files can be dropped".into()),
+            };
+            match read {
+                Ok((other, warnings)) => {
+                    let first = self.project.next_id;
+                    let n = self.project.merge(&other);
+                    if let Some(t) = self.project.tables.iter().find(|t| t.id >= first) {
+                        self.selection = Selection::Table(t.id);
+                    }
+                    self.welcome = None;
+                    self.grid = Default::default();
+                    self.status = format!("Added {n} table(s) from {}", p.display());
+                    if !warnings.is_empty() {
+                        self.import_notes = Some((p.display().to_string(), warnings));
+                    }
+                }
+                Err(e) => self.status = format!("Could not import {}: {e}", p.display()),
             }
-        };
-        let is_xml = p.extension().is_some_and(|e| e.eq_ignore_ascii_case("pzfx"));
-        let result = if is_xml { hg_core::pzfx::import(&String::from_utf8_lossy(&bytes)) } else { hg_core::prism::import(&bytes) };
-        match result {
+        }
+        if ctx.input(|i| !i.raw.hovered_files.is_empty()) {
+            let screen = ctx.screen_rect();
+            let painter = ctx.layer_painter(egui::LayerId::new(egui::Order::Foreground, egui::Id::new("drop")));
+            painter.rect_filled(screen, 0.0, Color32::from_black_alpha(140));
+            painter.text(
+                screen.center(),
+                egui::Align2::CENTER_CENTER,
+                "Drop to add the data to this project\n(.hxn, .pzfx, .prism)",
+                theme::bold(22.0),
+                Color32::WHITE,
+            );
+        }
+    }
+
+    fn import_prism(&mut self, p: PathBuf) {
+        match Self::read_prism(&p) {
             Ok(imported) => {
                 self.project = imported.project;
                 self.project.title = p.file_stem().map_or("Imported".into(), |s| s.to_string_lossy().into_owned());
@@ -576,6 +632,7 @@ impl App {
                 egui::ScrollArea::vertical().show(ui, |ui| {
                     let mut select: Option<Selection> = None;
                     let mut delete: Option<Selection> = None;
+                    let mut duplicate: Option<(Selection, bool)> = None;
                     let mut action: Option<&str> = None;
                     let tables: Vec<Item> = self
                         .project
@@ -583,7 +640,7 @@ impl App {
                         .iter()
                         .map(|t| (Selection::Table(t.id), table_icon(t.kind), t.name.clone(), t.kind.label().to_string()))
                         .collect();
-                    if section(ui, "table-2", "Data Tables", &tables, self.selection, &mut select, &mut delete, true) {
+                    if section(ui, "table-2", "Data Tables", &tables, self.selection, &mut select, &mut delete, &mut duplicate, true) {
                         action = Some("table");
                     }
                     let analyses: Vec<Item> = self
@@ -596,7 +653,7 @@ impl App {
                         })
                         .collect();
                     let can = self.current_table().is_some();
-                    if section(ui, "file-text", "Results", &analyses, self.selection, &mut select, &mut delete, can) {
+                    if section(ui, "file-text", "Results", &analyses, self.selection, &mut select, &mut delete, &mut duplicate, can) {
                         action = Some("analysis");
                     }
                     let graphs: Vec<Item> = self
@@ -605,7 +662,7 @@ impl App {
                         .iter()
                         .map(|g| (Selection::Graph(g.id), "chart-line", g.name.clone(), g.kind.label().to_string()))
                         .collect();
-                    if section(ui, "chart-column", "Graphs", &graphs, self.selection, &mut select, &mut delete, can) {
+                    if section(ui, "chart-column", "Graphs", &graphs, self.selection, &mut select, &mut delete, &mut duplicate, can) {
                         action = Some("graph");
                     }
                     if let Some(tid) = self.current_table() {
@@ -637,9 +694,16 @@ impl App {
                                         .map(|g| (Selection::Graph(g.id), "chart-line", g.name.clone(), String::new())),
                                 );
                                 for (sel, icon, label, _) in family {
-                                    if nav_item(ui, icon, &label, self.selection == sel).clicked() {
+                                    let r = nav_item(ui, icon, &label, self.selection == sel);
+                                    if r.clicked() {
                                         select = Some(sel);
                                     }
+                                    r.context_menu(|ui| {
+                                        duplicate_menu(ui, Selection::Table(tid), &mut duplicate);
+                                        if !matches!(sel, Selection::Table(_)) {
+                                            duplicate_menu(ui, sel, &mut duplicate);
+                                        }
+                                    });
                                 }
                             });
                     }
@@ -650,6 +714,19 @@ impl App {
                     if let Some(d) = delete {
                         self.selection = d;
                         self.delete_selection();
+                    }
+                    if let Some((sel, family)) = duplicate {
+                        let p = &mut self.project;
+                        let new = match sel {
+                            Selection::Table(id) => p.duplicate_table(id, family).map(Selection::Table),
+                            Selection::Analysis(id) => p.duplicate_analysis(id).map(Selection::Analysis),
+                            Selection::Graph(id) => p.duplicate_graph(id).map(Selection::Graph),
+                            Selection::None => None,
+                        };
+                        if let Some(s) = new {
+                            self.selection = s;
+                            self.grid = Default::default();
+                        }
                     }
                     match action {
                         Some("table") => self.welcome = Some(WelcomeDialog::new(false)),
@@ -730,6 +807,11 @@ impl App {
         match self.pending.take() {
             Some(Pending::New) => self.new_project(),
             Some(Pending::Open) => self.open_dialog(),
+            Some(Pending::OpenFile) => {
+                if let Some(p) = self.open_file.take() {
+                    self.open_path(p);
+                }
+            }
             Some(Pending::Close) => {
                 self.allow_close = true;
                 ctx.send_viewport_cmd(egui::ViewportCommand::Close);
@@ -746,7 +828,7 @@ impl App {
         let Some(action) = self.confirm else { return };
         let verb = match action {
             Pending::New => "creating a new project",
-            Pending::Open => "opening another project",
+            Pending::Open | Pending::OpenFile => "opening another project",
             Pending::Close => "closing",
         };
         egui::Window::new("Save changes?").collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).show(
@@ -915,6 +997,21 @@ fn truncate(s: &str, n: usize) -> String {
 
 type Item = (Selection, &'static str, String, String);
 
+/// Duplicate entries of a navigator item's menu: (item, whole family?).
+fn duplicate_menu(ui: &mut egui::Ui, sel: Selection, duplicate: &mut Option<(Selection, bool)>) {
+    let entries: &[(&str, bool)] = match sel {
+        Selection::Table(_) => &[("Duplicate family (data, analyses, graphs)", true), ("Duplicate data table only", false)],
+        Selection::None => &[],
+        _ => &[("Duplicate", false)],
+    };
+    for &(label, family) in entries {
+        if ui.button(label).clicked() {
+            *duplicate = Some((sel, family));
+            ui.close_menu();
+        }
+    }
+}
+
 /// A navigator section. Returns true when its "+" button was clicked.
 fn section(
     ui: &mut egui::Ui,
@@ -924,6 +1021,7 @@ fn section(
     current: Selection,
     select: &mut Option<Selection>,
     delete: &mut Option<Selection>,
+    duplicate: &mut Option<(Selection, bool)>,
     can_add: bool,
 ) -> bool {
     let p = theme::pal();
@@ -949,6 +1047,8 @@ fn section(
             *select = Some(*sel);
         }
         r.context_menu(|ui| {
+            duplicate_menu(ui, *sel, duplicate);
+            ui.separator();
             if ui.button("Delete").clicked() {
                 *delete = Some(*sel);
                 ui.close_menu();
@@ -962,6 +1062,7 @@ impl eframe::App for App {
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
         eframe::set_value(storage, "dark", &self.dark);
         eframe::set_value(storage, "palettes", &self.user_palettes);
+        eframe::set_value(storage, "styles", &self.user_styles);
     }
 
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
@@ -977,8 +1078,15 @@ impl eframe::App for App {
         crate::dialogs::graph_gallery(self, ctx);
         crate::colors::color_window(self, ctx);
         crate::graph_view::export_window(self, ctx);
+        crate::graph_view::style_window(self, ctx);
         self.about(ctx);
         self.import_window(ctx);
+        self.drop_files(ctx);
+        #[cfg(target_os = "macos")]
+        if let Some(p) = crate::macos::take_opened().pop() {
+            self.open_file = Some(p);
+            self.request(Pending::OpenFile);
+        }
         self.run_pending(ctx);
         if self.project != self.committed {
             self.touch();

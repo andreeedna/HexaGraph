@@ -44,12 +44,16 @@ jobs:
           mkdir -p $APP/MacOS $APP/Resources
           lipo -create -output $APP/MacOS/hexagraph \
             target/aarch64-apple-darwin/release/hexagraph target/x86_64-apple-darwin/release/hexagraph
-          mkdir icon.iconset
-          for s in 16 32 128 256 512; do
-            sips -z $s $s assets/icon.png --out icon.iconset/icon_${s}x${s}.png
-            sips -z $((s * 2)) $((s * 2)) assets/icon.png --out icon.iconset/icon_${s}x${s}@2x.png
+          # App icon and the icon of .hxn documents.
+          for pair in icon:HexaGraph document:HXNDocument; do
+            src=${pair%%:*}; name=${pair##*:}
+            mkdir $name.iconset
+            for s in 16 32 128 256 512; do
+              sips -z $s $s assets/$src.png --out $name.iconset/icon_${s}x${s}.png
+              sips -z $((s * 2)) $((s * 2)) assets/$src.png --out $name.iconset/icon_${s}x${s}@2x.png
+            done
+            iconutil -c icns $name.iconset -o $APP/Resources/$name.icns
           done
-          iconutil -c icns icon.iconset -o $APP/Resources/HexaGraph.icns
           VERSION=$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2)
           cat > $APP/Info.plist <<EOF
           <?xml version="1.0" encoding="UTF-8"?>
@@ -65,6 +69,22 @@ jobs:
             <key>CFBundleVersion</key><string>$VERSION</string>
             <key>LSMinimumSystemVersion</key><string>11.0</string>
             <key>NSHighResolutionCapable</key><true/>
+            <key>CFBundleDocumentTypes</key><array><dict>
+              <key>CFBundleTypeName</key><string>HexaGraph project</string>
+              <key>CFBundleTypeRole</key><string>Editor</string>
+              <key>CFBundleTypeIconFile</key><string>HXNDocument</string>
+              <key>LSHandlerRank</key><string>Owner</string>
+              <key>LSItemContentTypes</key><array><string>org.hexagraph.project</string></array>
+            </dict></array>
+            <key>UTExportedTypeDeclarations</key><array><dict>
+              <key>UTTypeIdentifier</key><string>org.hexagraph.project</string>
+              <key>UTTypeDescription</key><string>HexaGraph project</string>
+              <key>UTTypeConformsTo</key><array><string>public.data</string></array>
+              <key>UTTypeIconFile</key><string>HXNDocument</string>
+              <key>UTTypeTagSpecification</key><dict>
+                <key>public.filename-extension</key><array><string>hxn</string></array>
+              </dict>
+            </dict></array>
           </dict></plist>
           EOF
           # Ad-hoc signature: required to run on Apple silicon (the app is not notarized).
@@ -87,7 +107,17 @@ jobs:
       - run: |
           D=dist/HexaGraph
           mkdir -p $D
-          cp target/release/hexagraph assets/icon.png LICENSE examples/demo.hxn $D/
+          cp target/release/hexagraph assets/icon.png assets/document.svg LICENSE examples/demo.hxn $D/
+          cat > $D/hexagraph-mime.xml <<'EOF'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <mime-info xmlns="http://www.freedesktop.org/standards/shared-mime-info">
+            <mime-type type="application/x-hexagraph">
+              <comment>HexaGraph project</comment>
+              <icon name="application-x-hexagraph"/>
+              <glob pattern="*.hxn"/>
+            </mime-type>
+          </mime-info>
+          EOF
           cat > $D/hexagraph.desktop <<'EOF'
           [Desktop Entry]
           Type=Application
@@ -96,6 +126,7 @@ jobs:
           Exec=hexagraph %f
           Icon=hexagraph
           Categories=Science;Education;Math;
+          MimeType=application/x-hexagraph;
           EOF
           cat > $D/install.sh <<'EOF'
           #!/bin/sh
@@ -108,6 +139,12 @@ jobs:
           # Full paths: ~/.local/bin is not always on the desktop session's PATH.
           sed -e "s|^Exec=hexagraph|Exec=$HOME/.local/bin/hexagraph|" -e "s|^Icon=hexagraph|Icon=$HOME/.local/share/icons/hexagraph.png|" \
             hexagraph.desktop > ~/.local/share/applications/hexagraph.desktop
+          # .hxn files: their own type and icon, opened with HexaGraph.
+          install -Dm644 hexagraph-mime.xml ~/.local/share/mime/packages/hexagraph.xml
+          install -Dm644 document.svg ~/.local/share/icons/hicolor/scalable/mimetypes/application-x-hexagraph.svg
+          update-mime-database ~/.local/share/mime 2>/dev/null || true
+          update-desktop-database ~/.local/share/applications 2>/dev/null || true
+          gtk-update-icon-cache -f -t ~/.local/share/icons/hicolor 2>/dev/null || true
           echo "HexaGraph installed: find it in your applications menu, or run 'hexagraph'."
           EOF
           chmod +x $D/install.sh

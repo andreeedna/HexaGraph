@@ -5,6 +5,7 @@ use crate::graph::{Bracket, BracketKey, Graph, GraphKind};
 use crate::table::{DataTable, TableKind};
 use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;
+use std::collections::HashMap;
 use std::path::Path;
 
 pub const FORMAT_VERSION: u32 = 1;
@@ -278,6 +279,85 @@ impl Project {
         }
     }
 
+    /// Changes the kind of a table keeping its values; analysis exclusions
+    /// follow the values and graphs of a kind the table no longer offers
+    /// become its first graph kind.
+    pub fn set_table_kind(&mut self, table_id: u64, kind: TableKind) {
+        let Some(t) = self.table_mut(table_id) else { return };
+        if let Some(reps) = t.set_kind(kind) {
+            for a in self.analyses.iter_mut().filter(|a| a.table_id == table_id) {
+                a.excluded = a.excluded.iter().map(|&(d, r, k)| (d, r * reps + k, 0)).collect();
+            }
+        }
+        let allowed = GraphKind::for_table(kind);
+        for g in self.graphs.iter_mut().filter(|g| g.table_id == table_id && !allowed.contains(&g.kind)) {
+            g.kind = allowed[0];
+            g.transpose = false;
+        }
+    }
+
+    /// Copies table `table_id` of `src` into this project under new ids, with
+    /// its analyses and graphs when `family` is true. Returns the new table id.
+    pub fn copy_family_from(&mut self, src: &Project, table_id: u64, family: bool) -> Option<u64> {
+        let mut t = src.table(table_id)?.clone();
+        let tid = self.new_id();
+        t.id = tid;
+        self.tables.push(t);
+        if !family {
+            return Some(tid);
+        }
+        let mut ids = HashMap::new();
+        for a in src.analyses.iter().filter(|a| a.table_id == table_id) {
+            let id = self.new_id();
+            ids.insert(a.id, id);
+            self.analyses.push(Analysis { id, table_id: tid, ..a.clone() });
+        }
+        for g in src.graphs.iter().filter(|g| g.table_id == table_id) {
+            let mut g = g.clone();
+            g.id = self.new_id();
+            g.table_id = tid;
+            g.overlay_analyses = g.overlay_analyses.iter().filter_map(|a| ids.get(a).copied()).collect();
+            g.auto_significance.analysis = g.auto_significance.analysis.and_then(|a| ids.get(&a).copied());
+            self.graphs.push(g);
+        }
+        Some(tid)
+    }
+
+    /// Duplicates a table, with its analyses and graphs when `family` is true.
+    /// The copies are named "… (copy)". Returns the new table id.
+    pub fn duplicate_table(&mut self, table_id: u64, family: bool) -> Option<u64> {
+        let src = self.clone();
+        let tid = self.copy_family_from(&src, table_id, family)?;
+        self.table_mut(tid)?.name.push_str(" (copy)");
+        for g in self.graphs.iter_mut().filter(|g| g.table_id == tid) {
+            g.name.push_str(" (copy)");
+        }
+        Some(tid)
+    }
+
+    /// Duplicates one graph (same table). Returns the new graph id.
+    pub fn duplicate_graph(&mut self, id: u64) -> Option<u64> {
+        let mut g = self.graph(id)?.clone();
+        g.id = self.new_id();
+        g.name.push_str(" (copy)");
+        let new = g.id;
+        self.graphs.push(g);
+        Some(new)
+    }
+
+    /// Duplicates one analysis (same table). Returns the new analysis id.
+    pub fn duplicate_analysis(&mut self, id: u64) -> Option<u64> {
+        let a = self.analysis(id)?.clone();
+        let new = self.new_id();
+        self.analyses.push(Analysis { id: new, ..a });
+        Some(new)
+    }
+
+    /// Adds every table of `other`, with its analyses and graphs, to this project.
+    pub fn merge(&mut self, other: &Project) -> usize {
+        other.tables.iter().filter_map(|t| self.copy_family_from(other, t.id, true)).count()
+    }
+
     pub fn remove_graph(&mut self, id: u64) {
         self.graphs.retain(|g| g.id != id);
     }
@@ -369,6 +449,42 @@ mod tests {
                 .collect::<Vec<_>>()
         );
         let _ = t.block_text((0, t.rows - 1), (0, t.grid_columns().len() - 1));
+    }
+
+    #[test]
+    fn duplicate_family_and_merge_get_new_ids_and_links() {
+        let mut p = Project::default();
+        let id = p.add_table(crate::sample::sample_table(TableKind::XY));
+        let fit = p.add_analysis(id, AnalysisKind::LinearRegression);
+        p.add_graph(id, GraphKind::Xy);
+        let copy = p.duplicate_table(id, true).unwrap();
+        let (a, g) = (p.analyses.iter().find(|a| a.table_id == copy).unwrap().id, p.graphs.iter().find(|g| g.table_id == copy).unwrap());
+        assert_ne!(a, fit);
+        assert_eq!(g.overlay_analyses, vec![a]);
+        assert!(p.table(copy).unwrap().name.ends_with("(copy)"));
+        let mut other = Project::default();
+        assert_eq!(other.merge(&p), 2);
+        assert_eq!((other.tables.len(), other.analyses.len(), other.graphs.len()), (2, 2, 2));
+        assert!(other
+            .graphs
+            .iter()
+            .all(|g| g.overlay_analyses.iter().all(|&a| other.analysis(a).is_some_and(|a| a.table_id == g.table_id))));
+    }
+
+    #[test]
+    fn a_look_is_copied_without_titles_or_data() {
+        let mut p = Project::default();
+        let id = p.add_table(crate::sample::sample_table(TableKind::Column));
+        let (a, b) = (p.add_graph(id, GraphKind::ScatterDot), p.add_graph(id, GraphKind::Bar));
+        let src = {
+            let g = p.graphs.iter_mut().find(|g| g.id == a).unwrap();
+            (g.palette, g.font_size, g.colors, g.title) = (1, 18.0, vec![[1, 2, 3]], "Source".into());
+            g.clone()
+        };
+        let target = p.graphs.iter_mut().find(|g| g.id == b).unwrap();
+        target.apply_style(&src);
+        assert_eq!((target.palette, target.font_size, target.colors.clone()), (1, 18.0, vec![[1, 2, 3]]));
+        assert_eq!((target.kind, target.title.as_str()), (GraphKind::Bar, "Enzyme activity"));
     }
 
     #[test]

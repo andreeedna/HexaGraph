@@ -10,11 +10,13 @@ pub use render::render;
 pub use scene::{Anchor, Color, Element, Hit, Prim, Scene};
 pub use svg::to_svg;
 
-/// Qualitative palettes, chosen to be distinguishable with colour blindness.
-pub const PALETTES: [(&str, [Color; 8]); 3] = [
+/// Every palette offered to graphs, 8 colors each: the first three are
+/// qualitative (the first two readable with colour blindness), then
+/// sequential and themed sets. Graphs store the index: only append.
+pub const PALETTES: &[(&str, &[Color])] = &[
     (
         "Hexagon",
-        [
+        &[
             Color::rgb(0x1f, 0x5f, 0xa6),
             Color::rgb(0xe0, 0x6c, 0x1f),
             Color::rgb(0x2a, 0x9d, 0x6f),
@@ -27,7 +29,7 @@ pub const PALETTES: [(&str, [Color; 8]); 3] = [
     ),
     (
         "Okabe-Ito",
-        [
+        &[
             Color::rgb(0x00, 0x72, 0xb2),
             Color::rgb(0xe6, 0x9f, 0x00),
             Color::rgb(0x00, 0x9e, 0x73),
@@ -40,7 +42,7 @@ pub const PALETTES: [(&str, [Color; 8]); 3] = [
     ),
     (
         "Greyscale",
-        [
+        &[
             Color::rgb(0x20, 0x20, 0x20),
             Color::rgb(0x70, 0x70, 0x70),
             Color::rgb(0xa8, 0xa8, 0xa8),
@@ -51,8 +53,100 @@ pub const PALETTES: [(&str, [Color; 8]); 3] = [
             Color::rgb(0x60, 0x60, 0x60),
         ],
     ),
+    (
+        "Viridis",
+        &[
+            Color::rgb(0x44, 0x01, 0x54),
+            Color::rgb(0x46, 0x32, 0x7e),
+            Color::rgb(0x36, 0x5c, 0x8d),
+            Color::rgb(0x27, 0x7f, 0x8e),
+            Color::rgb(0x1f, 0xa1, 0x87),
+            Color::rgb(0x4a, 0xc1, 0x6d),
+            Color::rgb(0xa0, 0xda, 0x39),
+            Color::rgb(0xfd, 0xe7, 0x25),
+        ],
+    ),
+    (
+        "Pastel",
+        &[
+            Color::rgb(0xa6, 0xce, 0xe3),
+            Color::rgb(0xfb, 0x9a, 0x99),
+            Color::rgb(0xb2, 0xdf, 0x8a),
+            Color::rgb(0xfd, 0xbf, 0x6f),
+            Color::rgb(0xca, 0xb2, 0xd6),
+            Color::rgb(0xff, 0xff, 0x99),
+            Color::rgb(0xfc, 0xcd, 0xe5),
+            Color::rgb(0xd9, 0xd9, 0xd9),
+        ],
+    ),
+    (
+        "Bold",
+        &[
+            Color::rgb(0xe4, 0x1a, 0x1c),
+            Color::rgb(0x37, 0x7e, 0xb8),
+            Color::rgb(0x4d, 0xaf, 0x4a),
+            Color::rgb(0x98, 0x4e, 0xa3),
+            Color::rgb(0xff, 0x7f, 0x00),
+            Color::rgb(0xa6, 0x56, 0x28),
+            Color::rgb(0xf7, 0x81, 0xbf),
+            Color::rgb(0x99, 0x99, 0x99),
+        ],
+    ),
+    (
+        "Nature",
+        &[
+            Color::rgb(0x35, 0x5e, 0x3b),
+            Color::rgb(0x8a, 0xb0, 0x7d),
+            Color::rgb(0xc9, 0xa2, 0x27),
+            Color::rgb(0x8c, 0x5a, 0x3c),
+            Color::rgb(0x5b, 0x8e, 0xa6),
+            Color::rgb(0xd9, 0x8c, 0x5f),
+            Color::rgb(0x2f, 0x48, 0x58),
+            Color::rgb(0xb5, 0xc9, 0x9a),
+        ],
+    ),
+    (
+        "Ocean",
+        &[
+            Color::rgb(0x03, 0x04, 0x5e),
+            Color::rgb(0x02, 0x3e, 0x8a),
+            Color::rgb(0x00, 0x77, 0xb6),
+            Color::rgb(0x00, 0x96, 0xc7),
+            Color::rgb(0x00, 0xb4, 0xd8),
+            Color::rgb(0x48, 0xca, 0xe4),
+            Color::rgb(0x90, 0xe0, 0xef),
+            Color::rgb(0xca, 0xf0, 0xf8),
+        ],
+    ),
+    (
+        "Sunset",
+        &[
+            Color::rgb(0x2a, 0x2d, 0x4f),
+            Color::rgb(0x35, 0x50, 0x70),
+            Color::rgb(0x6d, 0x59, 0x7a),
+            Color::rgb(0xb5, 0x65, 0x76),
+            Color::rgb(0xe5, 0x6b, 0x6f),
+            Color::rgb(0xea, 0xac, 0x8b),
+            Color::rgb(0xf3, 0xd9, 0xb1),
+            Color::rgb(0xff, 0xf1, 0xe0),
+        ],
+    ),
+    (
+        "Monochrome blue",
+        &[
+            Color::rgb(0x08, 0x30, 0x6b),
+            Color::rgb(0x08, 0x51, 0x9c),
+            Color::rgb(0x21, 0x71, 0xb5),
+            Color::rgb(0x42, 0x92, 0xc6),
+            Color::rgb(0x6b, 0xae, 0xd6),
+            Color::rgb(0x9e, 0xca, 0xe1),
+            Color::rgb(0xc6, 0xdb, 0xef),
+            Color::rgb(0xde, 0xeb, 0xf7),
+        ],
+    ),
 ];
 
 pub fn palette_color(palette: usize, i: usize) -> Color {
-    PALETTES[palette % PALETTES.len()].1[i % 8]
+    let cols = PALETTES[palette % PALETTES.len()].1;
+    cols[i % cols.len()]
 }

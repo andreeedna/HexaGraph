@@ -155,6 +155,153 @@ pub fn export_window(app: &mut App, ctx: &egui::Context) {
     }
 }
 
+/// Applies the look of a graph (or of a saved look) to a choice of graphs.
+pub struct StyleWindow {
+    /// Graph the window was opened from.
+    graph_id: u64,
+    /// None: the look of `graph_id`; Some(k): saved look k.
+    source: Option<usize>,
+    targets: Vec<u64>,
+    name: String,
+}
+
+impl StyleWindow {
+    pub fn new(project: &hg_core::Project, graph_id: u64) -> Self {
+        let table = project.graph(graph_id).map(|g| g.table_id);
+        // Start with the other graphs of the same table ticked.
+        let targets = project.graphs.iter().filter(|g| Some(g.table_id) == table && g.id != graph_id).map(|g| g.id).collect();
+        StyleWindow { graph_id, source: None, targets, name: String::new() }
+    }
+}
+
+pub fn style_window(app: &mut App, ctx: &egui::Context) {
+    let Some(w) = app.styles.as_mut() else { return };
+    let Some(current) = app.project.graph(w.graph_id).cloned() else {
+        app.styles = None;
+        return;
+    };
+    let mut open = true;
+    let mut apply = false;
+    let mut remove = None;
+    egui::Window::new("Apply a look to several graphs")
+        .open(&mut open)
+        .collapsible(false)
+        .resizable(false)
+        .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+        .show(ctx, |ui| {
+            ui.set_width(460.0);
+            ui.label(RichText::new("Colors, symbols, fonts, lines and sizes are copied; data, titles, axes and error bars stay.").weak());
+            ui.add_space(6.0);
+            ui.label(RichText::new("Look").strong());
+            ui.radio_value(&mut w.source, None, format!("This graph: {}", current.name));
+            for (k, (name, _)) in app.user_styles.iter().enumerate() {
+                ui.horizontal(|ui| {
+                    ui.radio_value(&mut w.source, Some(k), name);
+                    if crate::icons::button(ui, "trash-2", "Delete this saved look", true) {
+                        remove = Some(k);
+                    }
+                });
+            }
+            ui.horizontal(|ui| {
+                ui.add(egui::TextEdit::singleline(&mut w.name).hint_text("Name").desired_width(160.0));
+                let ok = !w.name.trim().is_empty();
+                if ui
+                    .add_enabled(ok, egui::Button::new("Save this graph's look"))
+                    .on_hover_text("Saved looks are kept for every project")
+                    .clicked()
+                {
+                    app.user_styles.push((w.name.trim().to_string(), current.clone()));
+                    w.name.clear();
+                }
+            });
+            ui.horizontal(|ui| {
+                if ui.button("Import look…").clicked() {
+                    if let Some(path) = rfd::FileDialog::new().add_filter("HexaGraph look", &["hxlook"]).pick_file() {
+                        let read = std::fs::read_to_string(&path)
+                            .map_err(|e| e.to_string())
+                            .and_then(|t| serde_json::from_str::<hg_core::Graph>(&t).map_err(|e| e.to_string()));
+                        match read {
+                            Ok(g) => {
+                                let name = path.file_stem().map_or("Imported".into(), |s| s.to_string_lossy().into_owned());
+                                app.user_styles.push((name, g));
+                                w.source = Some(app.user_styles.len() - 1);
+                            }
+                            Err(e) => app.status = format!("Could not import the look: {e}"),
+                        }
+                    }
+                }
+                if ui.button("Export look…").on_hover_text("Save the chosen look as a file to share it").clicked() {
+                    let (name, g) = match w.source.and_then(|k| app.user_styles.get(k)) {
+                        Some((n, g)) => (n.clone(), g.clone()),
+                        None => (current.name.clone(), current.clone()),
+                    };
+                    if let Some(path) =
+                        rfd::FileDialog::new().add_filter("HexaGraph look", &["hxlook"]).set_file_name(format!("{name}.hxlook")).save_file()
+                    {
+                        let json = serde_json::to_string_pretty(&g).expect("graphs always serialize");
+                        app.status = match std::fs::write(&path, json) {
+                            Ok(()) => format!("Saved {}", path.display()),
+                            Err(e) => format!("Could not save the look: {e}"),
+                        };
+                    }
+                }
+            });
+            ui.add_space(8.0);
+            ui.horizontal(|ui| {
+                ui.label(RichText::new("Apply to").strong());
+                if ui.small_button("All").clicked() {
+                    w.targets = app.project.graphs.iter().map(|g| g.id).collect();
+                }
+                if ui.small_button("None").clicked() {
+                    w.targets.clear();
+                }
+            });
+            egui::ScrollArea::vertical().max_height(280.0).show(ui, |ui| {
+                for t in &app.project.tables {
+                    let graphs: Vec<&hg_core::Graph> = app.project.graphs.iter().filter(|g| g.table_id == t.id).collect();
+                    if graphs.is_empty() {
+                        continue;
+                    }
+                    ui.label(RichText::new(&t.name).small().color(crate::theme::pal().weak));
+                    for g in graphs {
+                        let mut on = w.targets.contains(&g.id);
+                        if ui.checkbox(&mut on, format!("{} — {}", g.name, g.kind.label())).changed() {
+                            if on {
+                                w.targets.push(g.id);
+                            } else {
+                                w.targets.retain(|&x| x != g.id);
+                            }
+                        }
+                    }
+                }
+            });
+            ui.separator();
+            ui.allocate_ui_with_layout(egui::vec2(ui.available_width(), 34.0), egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                let n = w.targets.len();
+                if crate::theme::primary_button(ui, &format!("Apply to {n} graph{}", if n == 1 { "" } else { "s" }), n > 0) {
+                    apply = true;
+                }
+            });
+        });
+    if let Some(k) = remove {
+        app.user_styles.remove(k);
+        if w.source.is_some_and(|s| s >= k) {
+            w.source = None;
+        }
+    }
+    if apply {
+        let src = w.source.and_then(|k| app.user_styles.get(k)).map_or(current, |(_, g)| g.clone());
+        let targets = std::mem::take(&mut w.targets);
+        for g in app.project.graphs.iter_mut().filter(|g| targets.contains(&g.id)) {
+            g.apply_style(&src);
+        }
+        app.status = format!("Look applied to {} graph(s)", targets.len());
+        app.styles = None;
+    } else if !open {
+        app.styles = None;
+    }
+}
+
 // ---------------------------------------------------------------- tools
 
 fn strip_button(ui: &mut egui::Ui, icon: &str, label: &str, on: bool) -> egui::Response {
@@ -541,6 +688,14 @@ fn axes_panel(app: &mut App, ui: &mut egui::Ui, id: u64) {
 }
 
 fn style_panel(app: &mut App, ui: &mut egui::Ui, id: u64) {
+    section(ui, "Reuse this look");
+    if ui
+        .button("Apply a look to several graphs…")
+        .on_hover_text("Copy colors, fonts, lines and sizes of this graph or of a saved look to graphs of any table")
+        .clicked()
+    {
+        app.styles = Some(StyleWindow::new(&app.project, id));
+    }
     let g = graph_mut(app, id);
     section(ui, "Size of the graph");
     ui.horizontal(|ui| {
@@ -662,6 +817,7 @@ fn colors_panel(app: &mut App, ui: &mut egui::Ui, id: u64) {
             }
         });
     }
+    ui.label(RichText::new("Click a color to start the palette from it.").small().weak());
     for (i, (name, cols)) in hg_plot::PALETTES.iter().enumerate() {
         ui.horizontal(|ui| {
             let on = g.palette == i && g.colors.is_empty();
@@ -669,9 +825,12 @@ fn colors_panel(app: &mut App, ui: &mut egui::Ui, id: u64) {
                 g.palette = i;
                 g.colors.clear();
             }
-            for c in cols.iter().take(6) {
-                let (rect, _) = ui.allocate_exact_size(Vec2::new(14.0, 14.0), egui::Sense::hover());
+            for (k, c) in cols.iter().enumerate() {
+                let (rect, resp) = ui.allocate_exact_size(Vec2::new(14.0, 14.0), egui::Sense::click());
                 ui.painter().rect_filled(rect, 2.0, Color32::from_rgb(c.r, c.g, c.b));
+                if resp.on_hover_text("Start from this color").clicked() {
+                    g.colors = (0..n_series.max(1)).map(|s| cols[(k + s) % cols.len()]).map(|c| [c.r, c.g, c.b]).collect();
+                }
             }
         });
     }

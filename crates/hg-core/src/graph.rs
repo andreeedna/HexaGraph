@@ -391,6 +391,33 @@ impl Default for Widths {
 }
 
 impl Graph {
+    /// Copies the look of `src`: palette and colors, symbols, fonts, line
+    /// widths, bars, sizes and legend. The data, titles, axes, error bars and
+    /// significance brackets of this graph stay as they are.
+    pub fn apply_style(&mut self, src: &Graph) {
+        self.palette = src.palette;
+        self.colors = src.colors.clone();
+        self.series_styles = src.series_styles.clone();
+        self.texts = src.texts;
+        self.font_size = src.font_size;
+        self.marker_size = src.marker_size;
+        self.line_width = src.line_width;
+        self.widths = src.widths;
+        self.bar_opacity = src.bar_opacity;
+        self.bar_width = src.bar_width;
+        self.cap_width = src.cap_width;
+        self.error_up_only = src.error_up_only;
+        self.bracket_tick = src.bracket_tick;
+        self.bracket_gap = src.bracket_gap;
+        self.x_tick_angle = src.x_tick_angle;
+        self.y_tick_angle = src.y_tick_angle;
+        self.width = src.width;
+        self.height = src.height;
+        self.show_legend = src.show_legend;
+        self.show_points = src.show_points;
+        self.connect_points = src.connect_points;
+    }
+
     pub fn series_style(&self, i: usize) -> SeriesStyle {
         self.series_styles.get(i).copied().unwrap_or_default()
     }
