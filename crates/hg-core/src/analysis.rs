@@ -756,16 +756,12 @@ pub fn run(kind: &AnalysisKind, t: &DataTable, selection: Option<&[usize]>, o: &
             if sets.len() < 2 {
                 return Err("two-way ANOVA needs at least two data sets with values".into());
             }
-            let candidate: Vec<usize> =
-                (0..t.used_rows()).filter(|&row| sets.iter().any(|&d| !t.cell_values(d, row).is_empty())).collect();
+            let candidate: Vec<usize> = (0..t.used_rows()).filter(|&row| sets.iter().any(|&d| !t.cell_values(d, row).is_empty())).collect();
             let (used_rows, incomplete): (Vec<usize>, Vec<usize>) =
                 candidate.into_iter().partition(|&row| sets.iter().all(|&d| !t.cell_values(d, row).is_empty()));
             if !incomplete.is_empty() {
                 let names: Vec<String> = incomplete.iter().map(|&r| t.row_label(r)).collect();
-                out.warnings.push(format!(
-                    "Rows where some data set has no value were left out of the ANOVA: {}.",
-                    names.join(", ")
-                ));
+                out.warnings.push(format!("Rows where some data set has no value were left out of the ANOVA: {}.", names.join(", ")));
             }
             if used_rows.len() < 2 {
                 return Err("two-way ANOVA needs at least two rows with a value in every data set".into());
@@ -780,7 +776,9 @@ pub fn run(kind: &AnalysisKind, t: &DataTable, selection: Option<&[usize]>, o: &
                             .filter_map(|k| {
                                 let s: Vec<Option<f64>> = used_rows
                                     .iter()
-                                    .map(|&row| t.get(row, crate::table::GridColumn::Value { dataset: d, replicate: k }).filter(|v| v.is_finite()))
+                                    .map(|&row| {
+                                        t.get(row, crate::table::GridColumn::Value { dataset: d, replicate: k }).filter(|v| v.is_finite())
+                                    })
                                     .collect();
                                 if s.iter().all(Option::is_none) {
                                     None
@@ -845,7 +843,8 @@ pub fn run(kind: &AnalysisKind, t: &DataTable, selection: Option<&[usize]>, o: &
                 let member_name = |i: usize| if *within_columns { t.row_label(used_rows[i]) } else { title(t, sets[i]) };
                 let member_index = |i: usize| if *within_columns { used_rows[i] } else { sets[i] };
                 let k = families.first().map_or(0, |f| f.2.len());
-                let pairs = posthoc::all_pairs(k);
+                // Dunnett compares every member with the first one (the control).
+                let pairs = if *method == Method::Dunnett { (1..k).map(|j| (j, 0)).collect() } else { posthoc::all_pairs(k) };
                 let family = (pairs.len() * families.len()) as f64;
                 let heading = if *within_columns { "Compare rows within each data set" } else { "Compare data sets within each row" };
                 let mut rt = ResultTable::new(
@@ -1105,6 +1104,27 @@ pub fn run(kind: &AnalysisKind, t: &DataTable, selection: Option<&[usize]>, o: &
                     rt.add(&format!("{ci} CI of ratio"), interval(Interval::new((hr.ln() - z * se).exp(), (hr.ln() + z * se).exp())));
                 }
                 out.tables.insert(1, rt);
+                if subjects.len() >= 3 {
+                    // Every pair of curves, Bonferroni-corrected for the number of pairs.
+                    let pairs = posthoc::all_pairs(subjects.len());
+                    let m = pairs.len() as f64;
+                    let mut pt = ResultTable::new(
+                        "Pairwise comparisons (Bonferroni-corrected)",
+                        &["Comparison", "Chi square", "P value", "Adjusted P", "Summary"],
+                    );
+                    for (i, j) in pairs {
+                        let c = e(survival::compare(&[subjects[i].clone(), subjects[j].clone()], w))?;
+                        let adj = (c.p * m).min(1.0);
+                        pt.row(vec![
+                            format!("{} vs. {}", title(t, groups[i]), title(t, groups[j])),
+                            num(c.chi2),
+                            p(c.p),
+                            p(adj),
+                            p_summary(adj).into(),
+                        ]);
+                    }
+                    out.tables.insert(2, pt);
+                }
             }
         }
         AnalysisKind::Contingency { yates } => {
@@ -1476,5 +1496,51 @@ mod tests {
         let out = run(&kind, &t, None, &Options::default()).unwrap();
         assert_eq!(out.significance.len(), 2 * 3);
         assert!(out.significance.iter().all(|s| s.group_is_dataset));
+    }
+
+    #[test]
+    fn two_way_dunnett_matches_r() {
+        use crate::table::GridColumn;
+        // Rows r1, r2; data sets control, d1, d2 with three replicates (R: lm + pmvt).
+        let cells =
+            [[[10.0, 12.0, 11.0], [14.0, 15.0, 13.0], [20.0, 22.0, 21.0]], [[11.0, 13.0, 12.0], [18.0, 17.0, 19.0], [15.0, 16.0, 14.0]]];
+        let mut t = DataTable::new(0, "g", TableKind::Grouped, 3, 2, 3);
+        for (r, row) in cells.iter().enumerate() {
+            for (d, reps) in row.iter().enumerate() {
+                for (k, v) in reps.iter().enumerate() {
+                    t.set(r, GridColumn::Value { dataset: d, replicate: k }, Some(*v));
+                }
+            }
+        }
+        let kind = AnalysisKind::TwoWay { comparisons: Some(Method::Dunnett), within_columns: false, repeated: false };
+        let out = run(&kind, &t, None, &Options::default()).unwrap();
+        let ps: Vec<(usize, usize, usize, f64)> = out.significance.iter().map(|s| (s.group.unwrap(), s.a, s.b, s.p)).collect();
+        assert_eq!(ps.len(), 4);
+        assert!(ps.iter().all(|&(_, _, b, _)| b == 0));
+        let p = |r: usize, a: usize| ps.iter().find(|x| x.0 == r && x.1 == a).unwrap().3;
+        assert!((p(0, 1) - 0.005937).abs() < 2e-5);
+        assert!((p(1, 2) - 0.005937).abs() < 2e-5);
+        assert!(p(0, 2) < 1e-6 && p(1, 1) < 1e-4);
+    }
+
+    #[test]
+    fn survival_pairwise_log_rank_matches_r() {
+        use crate::table::GridColumn;
+        let times = [
+            5.0, 8.0, 12.0, 15.0, 20.0, 22.0, 30.0, 30.0, 3.0, 4.0, 7.0, 9.0, 10.0, 14.0, 16.0, 18.0, 6.0, 9.0, 11.0, 13.0, 17.0, 21.0,
+            25.0, 28.0,
+        ];
+        let ev = [1, 1, 0, 1, 0, 1, 0, 0, 1, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 1, 0, 1, 0];
+        let mut t = DataTable::new(0, "s", TableKind::Survival, 3, 0, 1);
+        for (r, (&tm, &e)) in times.iter().zip(&ev).enumerate() {
+            t.set(r, GridColumn::X, Some(tm));
+            t.set(r, GridColumn::Value { dataset: r / 8, replicate: 0 }, Some(e as f64));
+        }
+        let out = run(&AnalysisKind::Survival { gehan: false }, &t, None, &Options::default()).unwrap();
+        let pt = out.tables.iter().find(|x| x.title.starts_with("Pairwise")).unwrap();
+        // survdiff chi square for A-B, A-C, B-C.
+        for (row, chi) in pt.rows.iter().zip([4.273708, 0.173164, 3.18321]) {
+            assert!((row[1].parse::<f64>().unwrap() - chi).abs() < 1e-3, "{row:?}");
+        }
     }
 }

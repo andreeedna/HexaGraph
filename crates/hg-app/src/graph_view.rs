@@ -83,7 +83,7 @@ impl ExportWindow {
 
 pub fn export_window(app: &mut App, ctx: &egui::Context) {
     let Some(gid) = app.export.as_ref().map(|w| w.graph_id) else { return };
-    let Some(name) = app.project.graph(gid).map(|g| g.name.clone()) else {
+    let Some(name) = app.project.graph(gid).map(|g| g.name.clone()).or_else(|| app.project.layout(gid).map(|l| l.name.clone())) else {
         app.export = None;
         return;
     };
@@ -564,6 +564,11 @@ fn data_panel(app: &mut App, ui: &mut egui::Ui, id: u64) {
             ui.checkbox(&mut g.connect_points, "Connect the points with lines");
         }
         ui.add(egui::Slider::new(&mut g.widths.lines, 0.25..=6.0).text("line thickness"));
+    }
+    if g.kind == GraphKind::Survival {
+        section(ui, "Survival");
+        ui.checkbox(&mut g.at_risk, "Number at risk under the X axis");
+        ui.checkbox(&mut g.median_lines, "Dashed lines at the median survival");
     }
 }
 
@@ -1118,5 +1123,67 @@ fn opt_value(ui: &mut egui::Ui, v: &mut Option<f64>, salt: &str) {
         ui.data_mut(|d| d.insert_temp(id, s));
     } else {
         ui.data_mut(|d| d.remove::<String>(id));
+    }
+}
+
+/// A page with several graphs: which graphs, how many columns, panel letters.
+pub fn layout_view(app: &mut App, ui: &mut egui::Ui, id: u64) {
+    let p = crate::theme::pal();
+    let graphs: Vec<(u64, String)> = app.project.graphs.iter().map(|g| (g.id, g.name.clone())).collect();
+    let scene = app.scene(id);
+    let Some(l) = app.project.layout_mut(id) else { return };
+    let mut export = false;
+    ui.horizontal_top(|ui| {
+        egui::Frame::new().fill(p.panel).corner_radius(10.0).inner_margin(12.0).stroke(egui::Stroke::new(1.0_f32, p.border)).show(
+            ui,
+            |ui| {
+                ui.vertical(|ui| {
+                    ui.set_width(280.0);
+                    ui.set_min_height(ui.available_height() - 24.0);
+                    ui.label(RichText::new("Page layout").font(crate::theme::bold(18.0)));
+                    ui.add_space(6.0);
+                    ui.label("Name of this page");
+                    ui.text_edit_singleline(&mut l.name);
+                    section(ui, "Arrangement");
+                    ui.add(egui::Slider::new(&mut l.columns, 1..=4).text("columns"));
+                    ui.checkbox(&mut l.letters, "Panel letters (A, B, C…)");
+                    section(ui, "Graphs on the page");
+                    ui.label(RichText::new("In order: left to right, top to bottom.").small().weak());
+                    egui::ScrollArea::vertical().max_height(320.0).show(ui, |ui| {
+                        for (gid, name) in &graphs {
+                            let mut on = l.graphs.contains(gid);
+                            ui.horizontal(|ui| {
+                                if ui.checkbox(&mut on, name).changed() {
+                                    if on {
+                                        l.graphs.push(*gid);
+                                    } else {
+                                        l.graphs.retain(|g| g != gid);
+                                    }
+                                }
+                                if let Some(i) = l.graphs.iter().position(|g| g == gid) {
+                                    ui.label(RichText::new(char::from(b'A' + (i % 26) as u8).to_string()).small().weak());
+                                    if i > 0 && ui.small_button("↑").on_hover_text("Earlier on the page").clicked() {
+                                        l.graphs.swap(i, i - 1);
+                                    }
+                                }
+                            });
+                        }
+                    });
+                    ui.add_space(10.0);
+                    export = ui.button("Export the page…").clicked();
+                });
+            },
+        );
+        let (rect, _) = ui.allocate_exact_size(ui.available_size(), egui::Sense::hover());
+        ui.painter().rect_filled(rect, 10.0, p.canvas);
+        match &scene {
+            Ok(s) => crate::paint::paint(ui.painter(), rect.shrink(16.0), s),
+            Err(e) => {
+                ui.painter().text(rect.center(), egui::Align2::CENTER_CENTER, e, egui::FontId::proportional(15.0), p.weak);
+            }
+        }
+    });
+    if export {
+        app.export = Some(ExportWindow::new(id));
     }
 }

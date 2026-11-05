@@ -2,10 +2,12 @@
 //! of primitives, which can be written as SVG or painted by the GUI.
 
 pub mod axis;
+pub mod layout;
 pub mod render;
 pub mod scene;
 pub mod svg;
 
+pub use layout::render_layout;
 pub use render::render;
 pub use scene::{Anchor, Color, Element, Hit, Prim, Scene};
 pub use svg::to_svg;

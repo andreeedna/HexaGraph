@@ -43,14 +43,18 @@ through) without deleting them.
 
 ![Data table](docs/screenshots/table.png)
 
-**3. Analyze, with advice.** Pick a test from a categorized list. The *Data
-check* panel looks at your data first. It shows n, mean, SD and median for each
+**3. Analyze, with advice.** Pick a test from a categorized list. For every
+kind of table, *Your data* describes what you entered (groups, factors,
+replicates, events, the shape of a curve) and lists the analyses that suit it,
+best first, with one-click *Use*. For column tables the *Data check* panel looks at your data first. It shows n, mean, SD and median for each
 group, then checks for a Gaussian distribution and for outliers, which you can
 exclude with one click. It also checks whether the SDs are similar. From these
 checks it recommends a test and explains why, with the follow-up comparisons
 to run and the alternative if an assumption is in doubt.
 
 ![Analyze dialog with the recommended test](docs/screenshots/analyze.png)
+
+![Overview of a grouped table: two-way ANOVA suggested and explained](docs/screenshots/analyze-grouped.png)
 
 **4. Read the results.** Result sheets look like a lab report: summary, ANOVA
 table, multiple comparisons, with P values summarized as `ns`, `*` … `****`.
@@ -77,6 +81,11 @@ the resolution journals ask for.
 | ![Grouped bar graph](docs/screenshots/grouped.png) | ![Kaplan-Meier curves](docs/screenshots/survival.png) |
 | **Export at 300 dpi or as vector** | **Dark theme** |
 | ![Export dialog](docs/screenshots/export.png) | ![Dark theme](docs/screenshots/graph-dark.png) |
+
+**7. Build the figure.** A page layout puts several graphs in a grid, with
+panel letters A, B, C…, and exports the whole figure at journal resolution.
+
+![Page layout with four panels](docs/screenshots/layout.png)
 
 ## Features
 

@@ -238,7 +238,7 @@ impl TextKind {
         match self {
             TextKind::Title => (1.25, true),
             TextKind::AxisTitles => (1.05, true),
-            TextKind::Brackets => (1.0, true),
+            TextKind::Brackets => (1.3, true),
             _ => (1.0, false),
         }
     }
@@ -371,6 +371,12 @@ pub struct Graph {
     /// Legend text of each data set (empty = the data set title).
     #[serde(default)]
     pub legend_labels: Vec<String>,
+    /// Survival graphs: table of the number at risk under the X axis.
+    #[serde(default)]
+    pub at_risk: bool,
+    /// Survival graphs: dashed lines marking each median survival.
+    #[serde(default)]
+    pub median_lines: bool,
 }
 
 /// Line thickness (points) of each part of a graph, set independently.
@@ -480,10 +486,7 @@ impl Graph {
             y_scale: Scale::Linear,
             y_min: None,
             y_max: None,
-            show_points: matches!(
-                kind,
-                GraphKind::ScatterDot | GraphKind::Xy | GraphKind::Bar | GraphKind::GroupedScatter | GraphKind::BoxWhisker
-            ),
+            show_points: matches!(kind, GraphKind::ScatterDot | GraphKind::Bar | GraphKind::GroupedScatter | GraphKind::BoxWhisker),
             connect_points: false,
             show_legend: true,
             palette: 0,
@@ -491,7 +494,7 @@ impl Graph {
             height: 400.0,
             marker_size: 4.0,
             line_width: 1.5,
-            font_size: 13.0,
+            font_size: 14.0,
             overlay_analyses: Vec::new(),
             brackets: Vec::new(),
             auto_significance: AutoSignificance::default(),
@@ -500,7 +503,8 @@ impl Graph {
             offsets: Offsets::default(),
             series_styles: Vec::new(),
             texts: Texts::default(),
-            bar_opacity: default_bar_opacity(),
+            // Solid bars for new graphs; older files keep their pale default.
+            bar_opacity: 0.85,
             bar_width: default_bar_width(),
             cap_width: 1.0,
             error_up_only: false,
@@ -511,6 +515,8 @@ impl Graph {
             bracket_tick: 1.0,
             bracket_gap: 1.0,
             legend_labels: Vec::new(),
+            at_risk: kind == GraphKind::Survival,
+            median_lines: false,
         }
     }
 }

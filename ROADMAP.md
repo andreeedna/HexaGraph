@@ -46,6 +46,7 @@ Legend: ✅ done · 🟡 partial · ⬜ to do
 |---|---|
 | Descriptive statistics, normality tests (4), one-sample t and Wilcoxon, Grubbs | ✅ |
 | Data check before a test: outliers, normality, equal SDs, suggested test | ✅ |
+| Overview of every table in the Analyze dialog, with the suitable analyses explained | ✅ |
 | Any test on any table, with a warning when the data are adapted | ✅ |
 | ROUT outlier method | ⬜ |
 | t tests (unpaired, Welch, paired), Mann-Whitney, Wilcoxon, KS — one/two tails, CI level | ✅ |
@@ -54,7 +55,7 @@ Legend: ✅ done · 🟡 partial · ⬜ to do
 | Dunnett's test (multivariate t) | ✅ |
 | Games-Howell after Welch's ANOVA | ✅ |
 | Dunnett T3 | ⬜ |
-| Two-way ANOVA (Type III, unbalanced), comparisons within rows/columns | ✅ |
+| Two-way ANOVA (Type III, unbalanced), comparisons within rows/columns (Tukey, Šídák, Dunnett vs. control…) | ✅ |
 | Two-way RM ANOVA, mixed-effects model, three-way ANOVA | ⬜ |
 | Nested t test, nested one-way ANOVA | ⬜ |
 | Multiple t tests (one per row) with FDR or Holm-Šídák | ✅ |
@@ -65,7 +66,7 @@ Legend: ✅ done · 🟡 partial · ⬜ to do
 | Interpolate unknowns from a standard curve; prediction bands (confidence band of linear regression ✅) | ⬜ |
 | User-defined equations | ⬜ |
 | Kaplan-Meier, log-rank, Gehan-Breslow-Wilcoxon, hazard ratio | ✅ |
-| Log-rank test for trend | ✅ |
+| Log-rank test for trend; pairwise log-rank comparisons (Bonferroni) | ✅ |
 | Cox proportional hazards | ⬜ |
 | Chi-square, Fisher, relative risk, odds ratio, trend | ✅ |
 | Bland-Altman, ROC | ✅ |
@@ -77,7 +78,7 @@ Legend: ✅ done · 🟡 partial · ⬜ to do
 |---|---|
 | Column graphs: scatter dot, bar, box, violin, mean ± error, before-after | ✅ |
 | Grouped/stacked bars and scatter, by row or by column | ✅ |
-| XY with fitted curves, Kaplan-Meier, pie and donut | ✅ |
+| XY with fitted curves, Kaplan-Meier (number at risk, median lines), pie and donut | ✅ |
 | Significance brackets, live from a test or by hand | ✅ |
 | Custom colors: disc, classic, harmony, RGB/HEX/CMYK, palettes | ✅ |
 | Interactive canvas: zoom, pan, click to select, drag labels, legend and brackets, resize the page | ✅ |
@@ -90,7 +91,8 @@ Legend: ✅ done · 🟡 partial · ⬜ to do
 | Axis breaks, custom ticks, right Y axis | ⬜ |
 | Drawing tools: text, arrows, lines, shapes, images on the graph | ⬜ |
 | Graph styles / themes, "magic" apply-style-to-many | ⬜ |
-| Layouts: several graphs and tables on a page | ⬜ |
+| Layouts: several graphs on a page, panel letters | ✅ |
+| Layouts: tables, free placement, text | ⬜ |
 
 ## 5. Output
 

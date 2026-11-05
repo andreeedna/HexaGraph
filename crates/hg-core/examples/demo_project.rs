@@ -46,6 +46,12 @@ fn main() {
             p.add_graph(t.id, hg_core::GraphKind::for_table(t.kind)[0]);
         }
     }
+    for g in &mut p.graphs {
+        g.title.clear();
+    }
+    // A four-panel figure: curve, scatter, grouped bars, survival.
+    let panels = [0, 1, 2, 4].iter().filter_map(|&i| p.graphs.get(i).map(|g| g.id)).collect();
+    p.add_layout(panels);
     p.save(std::path::Path::new(&path)).expect("write project");
     println!("wrote {path}");
 }

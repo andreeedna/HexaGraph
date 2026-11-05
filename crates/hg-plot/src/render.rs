@@ -261,10 +261,7 @@ impl Ctx<'_> {
             let c = self.color(i);
             if swatch {
                 // Bars: the swatch looks like the bars (opacity and border).
-                let bars = matches!(
-                    self.g.kind,
-                    GraphKind::Bar | GraphKind::GroupedBar | GraphKind::StackedBar | GraphKind::Histogram
-                );
+                let bars = matches!(self.g.kind, GraphKind::Bar | GraphKind::GroupedBar | GraphKind::StackedBar | GraphKind::Histogram);
                 let fill = if bars { c.with_alpha((self.g.bar_opacity.clamp(0.0, 1.0) * 255.0) as u8) } else { c };
                 let stroke = if bars { self.border(i, c) } else { AXIS };
                 self.scene.prims.push(Prim::Rect {
@@ -275,7 +272,10 @@ impl Ctx<'_> {
                 });
             } else {
                 self.scene.line((x - 2.0, yy - size * 0.3), (x + size + 2.0, yy - size * 0.3), c, self.g.widths.lines);
-                self.marker((x + size / 2.0, yy - size * 0.3), i, true);
+                // Kaplan-Meier curves have no symbols.
+                if self.g.kind != GraphKind::Survival {
+                    self.marker((x + size / 2.0, yy - size * 0.3), i, true);
+                }
             }
             self.text((x + size * 1.6, yy), n.clone(), TextKind::Legend, Anchor::Start, 0.0);
         }
@@ -526,7 +526,11 @@ fn columns(ctx: &mut Ctx, t: &DataTable, brackets: &[Bracket]) -> Result<(), Str
                     let mut pts: Vec<(f32, f32)> =
                         ys.iter().zip(&dens).map(|(y, de)| (c + half * (de / maxd) as f32, ax.map(*y))).collect();
                     pts.extend(ys.iter().zip(&dens).rev().map(|(y, de)| (c - half * (de / maxd) as f32, ax.map(*y))));
-                    ctx.scene.prims.push(Prim::Polygon { points: pts, fill: col.with_alpha(90), stroke: Some((ctx.border(i, col), bw_line)) });
+                    ctx.scene.prims.push(Prim::Polygon {
+                        points: pts,
+                        fill: col.with_alpha(90),
+                        stroke: Some((ctx.border(i, col), bw_line)),
+                    });
                     for (q, dash) in [(d.q1, true), (d.median, false), (d.q3, true)] {
                         ctx.scene.prims.push(Prim::Line {
                             from: (c - half * 0.5, ax.map(q)),
@@ -693,9 +697,7 @@ fn grouped(ctx: &mut Ctx, t: &DataTable, brackets: &[Bracket]) -> Result<(), Str
     if g.kind == GraphKind::GroupedLine {
         // Lines first, so the symbols are drawn over them.
         for si in 0..ns {
-            let pts: Vec<(f32, f32)> = (0..cats.len())
-                .filter_map(|ci| cell(ci, si).map(|(c, _, _)| (centers[ci], ax.map(c))))
-                .collect();
+            let pts: Vec<(f32, f32)> = (0..cats.len()).filter_map(|ci| cell(ci, si).map(|(c, _, _)| (centers[ci], ax.map(c)))).collect();
             let col = ctx.color(si);
             ctx.scene.prims.push(Prim::Polyline { points: pts, color: col, width: g.widths.lines, dashed: false });
         }
@@ -912,7 +914,8 @@ fn xy(ctx: &mut Ctx, project: &Project, t: &DataTable, brackets: &[Bracket]) -> 
 fn survival_curve(ctx: &mut Ctx, t: &DataTable) -> Result<(), String> {
     let g = ctx.g;
     let sets = t.nonempty_datasets();
-    let kms: Vec<survival::KaplanMeier> = sets.iter().filter_map(|&d| survival::kaplan_meier(&t.survival_subjects(d)).ok()).collect();
+    let (sets, kms): (Vec<usize>, Vec<survival::KaplanMeier>) =
+        sets.iter().filter_map(|&d| survival::kaplan_meier(&t.survival_subjects(d)).ok().map(|k| (d, k))).unzip();
     if kms.is_empty() {
         return Err("enter times and outcomes (1 = event, 0 = censored)".into());
     }
@@ -920,7 +923,10 @@ fn survival_curve(ctx: &mut Ctx, t: &DataTable) -> Result<(), String> {
     let tmax = kms.iter().flat_map(|k| k.steps.iter().map(|s| s.time)).fold(0.0, f64::max);
     let legend_w = ctx.legend_width(&names);
     let auto_x = if g.x_label.is_empty() && !t.x_title.is_empty() { ctx.font * 1.8 } else { 0.0 };
-    let fr = frame(ctx, legend_w, auto_x + numeric_x_extra(ctx));
+    // Number at risk: a heading and one row per curve under the X axis.
+    let tick = ctx.ts(TextKind::TickLabels).0;
+    let risk_h = if g.at_risk { (kms.len() + 1) as f32 * tick * 1.5 + tick * 0.5 } else { 0.0 };
+    let fr = frame(ctx, legend_w, auto_x + numeric_x_extra(ctx) + risk_h);
     let ax = Axis { min: g.y_min.unwrap_or(0.0), max: g.y_max.unwrap_or(100.0), scale: Scale::Linear, p0: fr.bottom, p1: fr.top };
     let (_, xb) = nice_range(0.0, tmax, Scale::Linear, true);
     let axx = Axis { min: 0.0, max: xb, scale: Scale::Linear, p0: fr.left, p1: fr.right };
@@ -946,6 +952,33 @@ fn survival_curve(ctx: &mut Ctx, t: &DataTable) -> Result<(), String> {
         for st in km.steps.iter().filter(|st| st.censored > 0) {
             let (x, y) = (axx.map(st.time), ax.map(100.0 * st.survival));
             ctx.scene.line((x, y - 5.0), (x, y + 5.0), col, g.widths.lines);
+        }
+        if let (true, Some(m)) = (g.median_lines, km.median) {
+            let (x, y) = (axx.map(m), ax.map(50.0));
+            let pts = vec![(fr.left, y), (x, y), (x, fr.bottom + 6.0)];
+            ctx.scene.prims.push(Prim::Polyline { points: pts, color: col, width: g.widths.lines * 0.6, dashed: true });
+        }
+    }
+    if g.at_risk {
+        let top = g.height - risk_h + tick;
+        ctx.text((8.0, top), "Number at risk", TextKind::TickLabels, Anchor::Start, 0.0);
+        for (i, &d) in sets.iter().enumerate() {
+            let times = t.survival_subjects(d).times;
+            let y = top + (i + 1) as f32 * tick * 1.5;
+            for v in axx.ticks() {
+                let n = times.iter().filter(|&&s| s >= v).count();
+                let (size, bold) = ctx.ts(TextKind::TickLabels);
+                let color = ctx.color(i);
+                ctx.scene.prims.push(Prim::Text {
+                    pos: (axx.map(v), y),
+                    text: n.to_string(),
+                    size,
+                    color,
+                    anchor: Anchor::Middle,
+                    angle: 0.0,
+                    bold,
+                });
+            }
         }
     }
     if legend_w > 0.0 {

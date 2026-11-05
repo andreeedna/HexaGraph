@@ -3,8 +3,9 @@
 
 use crate::analysis::{AnalysisKind, OneWayTest, TwoGroupTest};
 use crate::format::p;
+use crate::table::{DataTable, TableKind};
 use hg_stats::posthoc::Method;
-use hg_stats::{anova, descriptive::mean, normality, outliers};
+use hg_stats::{anova, descriptive::mean, nonlinear, normality, outliers, regression};
 
 /// One step of the decision. `ok`: Some(true) passed, Some(false) failed,
 /// None information only.
@@ -156,6 +157,249 @@ pub fn suggest(samples: &[Vec<f64>], groups: &[usize], matched: bool, current: &
     Some(Advice { kind, checks, reasons, alternative: Some(format!("{alternative} {doubt}.")) })
 }
 
+/// An analysis that suits the data, and why.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Pick {
+    pub kind: AnalysisKind,
+    pub title: String,
+    pub why: String,
+}
+
+impl Pick {
+    /// Whether `k` is this analysis (curve fits: the same equation, whatever the constraints).
+    pub fn is(&self, k: &AnalysisKind) -> bool {
+        match (&self.kind, k) {
+            (AnalysisKind::NonlinearFit { model: a, .. }, AnalysisKind::NonlinearFit { model: b, .. }) => a == b,
+            (a, b) => a == b,
+        }
+    }
+}
+
+/// What the data look like and which analyses suit them, for any kind of table.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct Overview {
+    pub facts: Vec<String>,
+    /// Best first.
+    pub picks: Vec<Pick>,
+}
+
+fn pick(kind: AnalysisKind, why: impl Into<String>) -> Pick {
+    let title = match &kind {
+        AnalysisKind::NonlinearFit { model: nonlinear::Model::DoseResponseVariableSlope, .. } => "Dose-response curve (4PL, EC50)".into(),
+        AnalysisKind::NonlinearFit { model: nonlinear::Model::InhibitionVariableSlope, .. } => "Inhibition curve (4PL, IC50)".into(),
+        AnalysisKind::TwoWay { repeated: true, .. } => "Two-way ANOVA, repeated measures".into(),
+        AnalysisKind::Survival { gehan: true } => "Survival: Gehan-Breslow-Wilcoxon".into(),
+        k => k.label(),
+    };
+    Pick { kind, title, why: why.into() }
+}
+
+fn plural(n: usize, one: &str, many: &str) -> String {
+    format!("{n} {}", if n == 1 { one } else { many })
+}
+
+/// Describes the table and suggests analyses. Column tables also get the
+/// detailed test advice of [`suggest`] in the Analyze dialog.
+pub fn overview(t: &DataTable) -> Overview {
+    let sets = t.nonempty_datasets();
+    let names: Vec<String> = sets.iter().map(|&d| t.datasets[d].title.clone()).collect();
+    let mut o = Overview::default();
+    if sets.is_empty() {
+        o.facts.push("The table is empty: enter or paste some data first.".into());
+        return o;
+    }
+    match t.kind {
+        TableKind::Column => {
+            let ns: Vec<usize> = sets.iter().map(|&d| t.column_values(d).len()).collect();
+            o.facts.push(format!("{} with {} values.", plural(sets.len(), "group", "groups"), range(&ns)));
+            match sets.len() {
+                1 => {
+                    o.picks.push(pick(AnalysisKind::ColumnStatistics, "One group: describe it (mean, SD, median, CI)."));
+                    o.picks.push(pick(
+                        AnalysisKind::OneSample { hypothetical: 0.0, wilcoxon: false },
+                        "Test whether its mean differs from a known value.",
+                    ));
+                }
+                2 => o.picks.push(pick(
+                    AnalysisKind::TwoGroups { a: sets[0], b: sets[1], test: TwoGroupTest::Unpaired },
+                    format!(
+                        "Two groups ({} and {}): a t test or its nonparametric version; see the recommended test below.",
+                        names[0], names[1]
+                    ),
+                )),
+                k => o.picks.push(pick(
+                    AnalysisKind::OneWay { test: OneWayTest::Ordinary, comparisons: Some(Method::Tukey), control: None },
+                    format!("{k} groups: one-way ANOVA, then multiple comparisons; see the recommended test below."),
+                )),
+            }
+        }
+        TableKind::Grouped => {
+            let rows: Vec<usize> = (0..t.used_rows()).filter(|&r| sets.iter().any(|&d| !t.cell_values(d, r).is_empty())).collect();
+            let reps: Vec<usize> = rows.iter().flat_map(|&r| sets.iter().map(move |&d| t.cell_values(d, r).len())).collect();
+            let row_names: Vec<String> = rows.iter().map(|&r| t.row_label(r)).collect();
+            o.facts.push(format!(
+                "Two factors: {} ({}) × {} ({}).",
+                plural(rows.len(), "row", "rows"),
+                short_list(&row_names),
+                plural(sets.len(), "data set", "data sets"),
+                short_list(&names)
+            ));
+            o.facts.push(format!("{} values per cell.", range(&reps)));
+            let min_rep = reps.iter().copied().min().unwrap_or(0);
+            if rows.len() >= 2 {
+                let (method, how) = if sets.len() == 2 { (Method::Sidak, "Šídák") } else { (Method::Tukey, "Tukey") };
+                let mut why = format!(
+                    "Tests the effect of the rows, of the data sets and their interaction (does the {} effect change from row to row?). Then {how} compares {} within each row.",
+                    short_list(&names),
+                    if sets.len() == 2 { format!("{} vs. {}", names[0], names[1]) } else { "the data sets".into() }
+                );
+                if min_rep < 2 {
+                    why.push_str(" With one value per cell the interaction cannot be tested.");
+                }
+                o.picks.push(pick(AnalysisKind::TwoWay { comparisons: Some(method), within_columns: false, repeated: false }, why));
+                if min_rep >= 2 {
+                    o.picks.push(pick(
+                        AnalysisKind::TwoWay { comparisons: Some(method), within_columns: false, repeated: true },
+                        "If each replicate column is the same subject measured in every row (e.g. the same mouse on each day): repeated-measures two-way ANOVA.",
+                    ));
+                }
+            }
+            if sets.len() == 2 && min_rep >= 2 {
+                o.picks.push(pick(
+                    AnalysisKind::MultipleT { a: sets[0], b: sets[1], welch: false, fdr: Some(true) },
+                    "One t test per row, corrected for the number of rows: simpler, but ignores that the rows share an error term.",
+                ));
+            }
+            if o.picks.is_empty() {
+                o.picks.push(pick(
+                    AnalysisKind::ColumnStatistics,
+                    "Only one row: describe each data set, or use a Column table to compare them.",
+                ));
+            }
+        }
+        TableKind::XY => {
+            let pts: Vec<(f64, f64)> = sets.iter().flat_map(|&d| t.xy_points(d)).collect();
+            let xs: Vec<f64> = (0..t.rows).filter_map(|r| t.x[r]).collect();
+            let (lo, hi) = xs.iter().fold((f64::INFINITY, f64::NEG_INFINITY), |(a, b), &x| (a.min(x), b.max(x)));
+            o.facts.push(format!(
+                "{} with {} points, X from {} to {}.",
+                plural(sets.len(), "data set", "data sets"),
+                pts.len(),
+                crate::format::num(lo),
+                crate::format::num(hi)
+            ));
+            let first = t.xy_points(sets[0]);
+            let (x, y): (Vec<f64>, Vec<f64>) = first.iter().copied().unzip();
+            let line = regression::linear(&x, &y).ok();
+            let sigmoid = nonlinear::fit(nonlinear::Model::DoseResponseVariableSlope, &x, &y, None).ok();
+            let r2_line = line.as_ref().map_or(0.0, |l| l.r_squared);
+            let r2_sig = sigmoid.as_ref().map_or(0.0, |f| f.r_squared);
+            let falling = line.as_ref().is_some_and(|l| l.slope < 0.0);
+            if r2_line > 0.0 {
+                o.facts.push(format!(
+                    "{}: a straight line explains {:.0}% of the variation{}.",
+                    names[0],
+                    100.0 * r2_line,
+                    if sigmoid.is_some() { format!(", a sigmoid curve {:.0}%", 100.0 * r2_sig) } else { String::new() }
+                ));
+            }
+            let curve = x.len() >= 5 && r2_sig > r2_line + 0.02 && r2_sig > 0.9;
+            let model = if falling { nonlinear::Model::InhibitionVariableSlope } else { nonlinear::Model::DoseResponseVariableSlope };
+            let dose = pick(
+                AnalysisKind::NonlinearFit { model, fixed: Vec::new() },
+                format!(
+                    "The points follow an S-shaped curve: fit a four-parameter {} curve to get the {} and the Hill slope. X must be the log of the concentration.",
+                    if falling { "inhibition" } else { "dose-response" },
+                    if falling { "IC50" } else { "EC50" }
+                ),
+            );
+            let linear = pick(
+                AnalysisKind::LinearRegression,
+                "The points lie close to a straight line: linear regression gives the slope, intercept and R².",
+            );
+            if curve {
+                o.picks.extend([dose, linear]);
+            } else {
+                o.picks.extend([linear, dose]);
+            }
+            o.picks.push(pick(
+                AnalysisKind::Correlation { spearman: false },
+                "Only how strongly X and Y move together (Pearson r), without a model.",
+            ));
+            o.picks.push(pick(AnalysisKind::AreaUnderCurve { baseline: 0.0 }, "One number per curve, e.g. total exposure over time."));
+        }
+        TableKind::Survival => {
+            let subjects: Vec<_> = sets.iter().map(|&d| t.survival_subjects(d)).collect();
+            let n: usize = subjects.iter().map(|s| s.times.len()).sum();
+            let events: usize = subjects.iter().map(|s| s.events.iter().filter(|e| **e).count()).sum();
+            o.facts.push(format!(
+                "{}, {} subjects: {} and {} censored.",
+                plural(sets.len(), "group", "groups"),
+                n,
+                plural(events, "event", "events"),
+                n - events
+            ));
+            let why = match sets.len() {
+                1 => "Kaplan-Meier curve with the median survival.".to_string(),
+                2 => format!("Kaplan-Meier curves, median survival and the log-rank test: does survival differ between {} and {}? Also the hazard ratio.", names[0], names[1]),
+                k => format!("Kaplan-Meier curves, the log-rank test across the {k} groups, the test for trend and every pair compared (Bonferroni)."),
+            };
+            o.picks.push(pick(AnalysisKind::Survival { gehan: false }, why));
+            if sets.len() >= 2 {
+                o.picks.push(pick(
+                    AnalysisKind::Survival { gehan: true },
+                    "Gehan-Breslow-Wilcoxon gives more weight to early deaths: use it if the curves differ mostly at the start.",
+                ));
+            }
+        }
+        TableKind::Contingency => {
+            let counts = t.counts();
+            let total: f64 = counts.iter().flatten().sum();
+            let (r, c) = (counts.len(), sets.len());
+            o.facts.push(format!("{r} × {c} table, {} subjects.", total as u64));
+            let row_sums: Vec<f64> = counts.iter().map(|row| row.iter().sum()).collect();
+            let col_sums: Vec<f64> = (0..t.datasets.len()).map(|j| counts.iter().map(|row| row[j]).sum()).collect();
+            let small = row_sums.iter().any(|a| col_sums.iter().any(|b| total > 0.0 && a * b / total < 5.0 && a * b > 0.0));
+            let why = if r == 2 && c == 2 {
+                if small {
+                    "2 × 2 table with small expected counts: Fisher's exact test, with relative risk and odds ratio.".to_string()
+                } else {
+                    "2 × 2 table: chi-square and Fisher's exact test, relative risk and odds ratio.".to_string()
+                }
+            } else {
+                let mut w = "Chi-square test: is the distribution across columns the same in every row?".to_string();
+                if small {
+                    w.push_str(" Some expected counts are below 5, so the P value is approximate.");
+                }
+                w
+            };
+            o.picks.push(pick(AnalysisKind::Contingency { yates: false }, why));
+        }
+        TableKind::PartsOfWhole => {
+            o.facts.push(format!("{} parts.", (0..t.used_rows()).filter(|&r| !t.cell_values(sets[0], r).is_empty()).count()));
+            o.picks.push(pick(AnalysisKind::FractionOfTotal, "Each value as a fraction and percentage of the total."));
+        }
+    }
+    o
+}
+
+fn range(v: &[usize]) -> String {
+    let (lo, hi) = (v.iter().copied().min().unwrap_or(0), v.iter().copied().max().unwrap_or(0));
+    if lo == hi {
+        lo.to_string()
+    } else {
+        format!("{lo}–{hi}")
+    }
+}
+
+fn short_list(v: &[String]) -> String {
+    if v.len() <= 3 {
+        v.join(", ")
+    } else {
+        format!("{}, … {}", v[..2].join(", "), v[v.len() - 1])
+    }
+}
+
 fn tested_name(s: &[(String, usize, Option<f64>)]) -> String {
     match s {
         [one] => format!("{}, P = {}", one.0, p(one.2.unwrap_or(f64::NAN))),
@@ -198,6 +442,20 @@ mod tests {
         let advice = suggest(&[GAUSS.to_vec(), skewed], &[0, 1], false, &cur).unwrap();
         assert!(advice.checks.iter().any(|c| c.ok == Some(false)));
         assert_eq!(two(advice), TwoGroupTest::MannWhitney);
+    }
+
+    #[test]
+    fn overview_fits_every_kind_of_table() {
+        use crate::sample::sample_table;
+        for kind in TableKind::ALL {
+            let o = overview(&sample_table(kind));
+            assert!(!o.facts.is_empty() && !o.picks.is_empty(), "{kind:?}");
+            assert!(o.picks[0].kind.suitability(kind).is_ok(), "{kind:?}");
+        }
+        // The sample dose-response data are S-shaped: the curve fit comes first.
+        assert!(matches!(overview(&sample_table(TableKind::XY)).picks[0].kind, AnalysisKind::NonlinearFit { .. }));
+        let g = overview(&sample_table(TableKind::Grouped));
+        assert!(matches!(g.picks[0].kind, AnalysisKind::TwoWay { repeated: false, .. }));
     }
 
     #[test]

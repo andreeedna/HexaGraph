@@ -12,5 +12,5 @@ pub mod table;
 
 pub use analysis::{Analysis, AnalysisKind, AnalysisOutput, ResultTable};
 pub use graph::{ErrorBar, Graph, GraphKind, Scale};
-pub use project::Project;
+pub use project::{Layout, Project};
 pub use table::{DataSet, DataTable, GridColumn, TableKind};

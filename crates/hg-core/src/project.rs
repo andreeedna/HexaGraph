@@ -20,6 +20,21 @@ pub struct Project {
     pub next_id: u64,
     #[serde(default)]
     pub notes: String,
+    /// Pages with several graphs (figures).
+    #[serde(default)]
+    pub layouts: Vec<Layout>,
+}
+
+/// Several graphs arranged in a grid on one page, ready for a paper figure.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Layout {
+    pub id: u64,
+    pub name: String,
+    /// Graph ids in reading order (left to right, top to bottom).
+    pub graphs: Vec<u64>,
+    pub columns: usize,
+    /// Mark the panels A, B, C…
+    pub letters: bool,
 }
 
 impl Default for Project {
@@ -32,6 +47,7 @@ impl Default for Project {
             graphs: Vec::new(),
             next_id: 1,
             notes: String::new(),
+            layouts: Vec::new(),
         }
     }
 }
@@ -173,6 +189,10 @@ impl Project {
         self.tables.retain(|t| t.id != id);
         self.analyses.retain(|a| a.table_id != id);
         self.graphs.retain(|g| g.table_id != id);
+        let graphs: Vec<u64> = self.graphs.iter().map(|g| g.id).collect();
+        for l in &mut self.layouts {
+            l.graphs.retain(|g| graphs.contains(g));
+        }
     }
 
     pub fn remove_analysis(&mut self, id: u64) {
@@ -353,13 +373,37 @@ impl Project {
         Some(new)
     }
 
+    /// Adds a layout of these graphs, two per row. Returns its id.
+    pub fn add_layout(&mut self, graphs: Vec<u64>) -> u64 {
+        let id = self.new_id();
+        let name = format!("Figure {}", self.layouts.len() + 1);
+        self.layouts.push(Layout { id, name, graphs, columns: 2, letters: true });
+        id
+    }
+
+    pub fn layout(&self, id: u64) -> Option<&Layout> {
+        self.layouts.iter().find(|l| l.id == id)
+    }
+
+    pub fn layout_mut(&mut self, id: u64) -> Option<&mut Layout> {
+        self.layouts.iter_mut().find(|l| l.id == id)
+    }
+
+    pub fn remove_layout(&mut self, id: u64) {
+        self.layouts.retain(|l| l.id != id);
+    }
+
     /// Adds every table of `other`, with its analyses and graphs, to this project.
+    // shortcut: layouts of `other` are not copied (graph ids change), add them if users merge figures.
     pub fn merge(&mut self, other: &Project) -> usize {
         other.tables.iter().filter_map(|t| self.copy_family_from(other, t.id, true)).count()
     }
 
     pub fn remove_graph(&mut self, id: u64) {
         self.graphs.retain(|g| g.id != id);
+        for l in &mut self.layouts {
+            l.graphs.retain(|&g| g != id);
+        }
     }
 
     pub fn to_json(&self) -> String {

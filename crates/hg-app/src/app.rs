@@ -24,6 +24,7 @@ pub enum Selection {
     Table(u64),
     Analysis(u64),
     Graph(u64),
+    Layout(u64),
 }
 
 pub struct App {
@@ -145,6 +146,7 @@ impl App {
             "table" => p.tables.get(n).map(|t| Selection::Table(t.id)),
             "results" => p.analyses.get(n).map(|a| Selection::Analysis(a.id)),
             "graph" => p.graphs.get(n).map(|g| Selection::Graph(g.id)),
+            "layout" => p.layouts.get(n).map(|l| Selection::Layout(l.id)),
             _ => None,
         };
         if let Some(s) = sel {
@@ -186,7 +188,11 @@ impl App {
                 return s.clone();
             }
         }
-        let s = self.project.graph(id).map_or_else(|| Err("the graph was deleted".into()), |g| hg_plot::render(&self.project, g));
+        let s = match (self.project.graph(id), self.project.layout(id)) {
+            (Some(g), _) => hg_plot::render(&self.project, g),
+            (None, Some(l)) => hg_plot::render_layout(&self.project, l),
+            _ => Err("the graph was deleted".into()),
+        };
         self.scene_cache.insert(id, (self.revision, s.clone()));
         s
     }
@@ -243,6 +249,7 @@ impl App {
             Selection::Table(id) => self.project.table(id).is_some(),
             Selection::Analysis(id) => self.project.analysis(id).is_some(),
             Selection::Graph(id) => self.project.graph(id).is_some(),
+            Selection::Layout(id) => self.project.layout(id).is_some(),
             Selection::None => true,
         }
     }
@@ -419,7 +426,7 @@ impl App {
             Selection::Table(id) => Some(id),
             Selection::Analysis(id) => self.project.analysis(id).map(|a| a.table_id),
             Selection::Graph(id) => self.project.graph(id).map(|g| g.table_id),
-            Selection::None => None,
+            Selection::Layout(_) | Selection::None => None,
         }
     }
 
@@ -440,6 +447,7 @@ impl App {
             Selection::Table(id) => self.project.remove_table(id),
             Selection::Analysis(id) => self.project.remove_analysis(id),
             Selection::Graph(id) => self.project.remove_graph(id),
+            Selection::Layout(id) => self.project.remove_layout(id),
             Selection::None => return,
         }
         self.selection = Selection::None;
@@ -545,7 +553,7 @@ impl App {
     fn toolbar(&mut self, ctx: &egui::Context) {
         let p = theme::pal();
         let has_table = self.current_table().is_some();
-        let is_graph = matches!(self.selection, Selection::Graph(_));
+        let is_graph = matches!(self.selection, Selection::Graph(_) | Selection::Layout(_));
         let is_result = matches!(self.selection, Selection::Analysis(_));
         egui::TopBottomPanel::top("toolbar")
             .frame(
@@ -594,7 +602,7 @@ impl App {
                         }
                     }
                     if tool(ui, "image-down", "Export", is_graph) {
-                        if let Selection::Graph(id) = self.selection {
+                        if let Selection::Graph(id) | Selection::Layout(id) = self.selection {
                             self.export = Some(crate::graph_view::ExportWindow::new(id));
                         }
                     }
@@ -665,6 +673,16 @@ impl App {
                     if section(ui, "chart-column", "Graphs", &graphs, self.selection, &mut select, &mut delete, &mut duplicate, can) {
                         action = Some("graph");
                     }
+                    let layouts: Vec<Item> = self
+                        .project
+                        .layouts
+                        .iter()
+                        .map(|l| (Selection::Layout(l.id), "grid-3x3", l.name.clone(), format!("{} graphs on one page", l.graphs.len())))
+                        .collect();
+                    let any_graph = !self.project.graphs.is_empty();
+                    if section(ui, "grid-3x3", "Layouts", &layouts, self.selection, &mut select, &mut delete, &mut duplicate, any_graph) {
+                        action = Some("layout");
+                    }
                     if let Some(tid) = self.current_table() {
                         ui.add_space(12.0);
                         egui::Frame::new()
@@ -721,7 +739,7 @@ impl App {
                             Selection::Table(id) => p.duplicate_table(id, family).map(Selection::Table),
                             Selection::Analysis(id) => p.duplicate_analysis(id).map(Selection::Analysis),
                             Selection::Graph(id) => p.duplicate_graph(id).map(Selection::Graph),
-                            Selection::None => None,
+                            Selection::Layout(_) | Selection::None => None,
                         };
                         if let Some(s) = new {
                             self.selection = s;
@@ -732,6 +750,13 @@ impl App {
                         Some("table") => self.welcome = Some(WelcomeDialog::new(false)),
                         Some("analysis") => self.start_analysis(),
                         Some("graph") => self.start_graph_gallery(),
+                        Some("layout") => {
+                            // Start from the current table's graphs, else every graph.
+                            let tid = self.current_table();
+                            let mine: Vec<u64> = self.project.graphs.iter().filter(|g| Some(g.table_id) == tid).map(|g| g.id).collect();
+                            let ids = if mine.len() >= 2 { mine } else { self.project.graphs.iter().map(|g| g.id).collect() };
+                            self.selection = Selection::Layout(self.project.add_layout(ids));
+                        }
                         _ => {}
                     }
                 });
@@ -744,6 +769,7 @@ impl App {
             Selection::Table(id) => crate::grid::table_view(self, ui, id),
             Selection::Analysis(id) => crate::results::results_view(self, ui, id),
             Selection::Graph(id) => crate::graph_view::graph_view(self, ui, id),
+            Selection::Layout(id) => crate::graph_view::layout_view(self, ui, id),
             Selection::None => {
                 ui.vertical_centered(|ui| {
                     ui.add_space(ui.available_height() / 4.0);

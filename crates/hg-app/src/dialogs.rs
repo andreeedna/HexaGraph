@@ -431,11 +431,10 @@ fn dataset_combo(ui: &mut egui::Ui, salt: &str, titles: &[String], v: &mut usize
 }
 
 /// Multiple comparison methods: Tukey for all pairs, Dunnett against a control.
-fn comparisons_combo(ui: &mut egui::Ui, v: &mut Option<Method>, all_pairs: bool) {
-    let first = if all_pairs { Method::Tukey } else { Method::Dunnett };
+fn comparisons_combo(ui: &mut egui::Ui, v: &mut Option<Method>, first: &[Method]) {
     egui::ComboBox::from_id_salt("cmp").selected_text(v.map_or("None", |m| m.label())).show_ui(ui, |ui| {
         ui.selectable_value(v, None, "None");
-        for m in [first, Method::Bonferroni, Method::Sidak, Method::HolmSidak, Method::FisherLsd] {
+        for &m in first.iter().chain(&[Method::Bonferroni, Method::Sidak, Method::HolmSidak, Method::FisherLsd]) {
             ui.selectable_value(v, Some(m), m.label());
         }
     });
@@ -541,7 +540,7 @@ fn parameters(ui: &mut egui::Ui, kind: &mut AnalysisKind, titles: &[String], row
                     if control.is_none() && *comparisons == Some(Method::Dunnett) {
                         *comparisons = Some(Method::Tukey);
                     }
-                    comparisons_combo(ui, comparisons, control.is_none());
+                    comparisons_combo(ui, comparisons, if control.is_none() { &[Method::Tukey] } else { &[Method::Dunnett] });
                 }
             }
             ui.end_row();
@@ -575,8 +574,13 @@ fn parameters(ui: &mut egui::Ui, kind: &mut AnalysisKind, titles: &[String], row
             });
             ui.end_row();
             ui.label("Multiple comparisons");
-            comparisons_combo(ui, comparisons, true);
+            comparisons_combo(ui, comparisons, &[Method::Tukey, Method::Dunnett]);
             ui.end_row();
+            if *comparisons == Some(Method::Dunnett) {
+                ui.label("");
+                ui.label(RichText::new("Dunnett compares each one with the first (the control).").weak());
+                ui.end_row();
+            }
             ui.label("Compare");
             ui.vertical(|ui| {
                 ui.radio_value(within_columns, false, "Data sets (columns) within each row");
@@ -604,7 +608,7 @@ fn parameters(ui: &mut egui::Ui, kind: &mut AnalysisKind, titles: &[String], row
             });
             ui.end_row();
             ui.label("");
-            ui.label(RichText::new(model.equation()).monospace());
+            ui.add(egui::Label::new(RichText::new(model.equation()).monospace()).wrap());
             ui.end_row();
             ui.label("Constraints");
             ui.vertical(|ui| {
@@ -782,7 +786,9 @@ pub fn analyze_dialog(app: &mut App, ctx: &egui::Context) {
                         ui.set_width(330.0);
                         if let Some(t) = app.project.table(d.table_id) {
                             let view = t.analysis_view();
-                            if let Some(suggestion) = data_check(ui, &view, d) {
+                            let picked = overview_panel(ui, &view, &d.kind);
+                            ui.add_space(8.0);
+                            if let Some(suggestion) = data_check(ui, &view, d).or(picked) {
                                 let label = suggestion.label();
                                 if let Some(pos) = d
                                     .catalog
@@ -828,6 +834,52 @@ pub fn analyze_dialog(app: &mut App, ctx: &egui::Context) {
     }
 }
 
+/// What the data look like and which analyses suit them. Returns the
+/// analysis the user picked.
+fn overview_panel(ui: &mut egui::Ui, t: &DataTable, current: &AnalysisKind) -> Option<AnalysisKind> {
+    let p = crate::theme::pal();
+    let o = hg_core::advice::overview(t);
+    let mut picked = None;
+    ui.horizontal(|ui| {
+        ui.add(crate::icons::image("info", 18.0, p.accent));
+        ui.label(RichText::new("Your data").font(crate::theme::bold(16.0)));
+    });
+    for f in &o.facts {
+        ui.add(egui::Label::new(RichText::new(f).small()).wrap());
+    }
+    if o.picks.is_empty() {
+        return None;
+    }
+    ui.add_space(4.0);
+    ui.label(RichText::new("Suitable analyses").font(crate::theme::bold(13.5)).color(p.accent));
+    for (i, pk) in o.picks.iter().enumerate() {
+        egui::Frame::new()
+            .fill(if i == 0 { p.selected } else { p.panel_alt })
+            .corner_radius(8.0)
+            .inner_margin(8.0)
+            .stroke(egui::Stroke::new(1.0_f32, p.border))
+            .show(ui, |ui| {
+                ui.set_width(ui.available_width());
+                ui.horizontal(|ui| {
+                    let label = if i == 0 { format!("★ {}", pk.title) } else { pk.title.clone() };
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if pk.is(current) {
+                            ui.label(RichText::new("chosen").small().color(p.good));
+                        } else if ui.small_button("Use").clicked() {
+                            picked = Some(pk.kind.clone());
+                        }
+                        ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                            ui.add(egui::Label::new(RichText::new(label).font(crate::theme::bold(13.0))).truncate());
+                        });
+                    });
+                });
+                ui.add(egui::Label::new(RichText::new(&pk.why).small().color(p.weak)).wrap());
+            });
+        ui.add_space(3.0);
+    }
+    picked
+}
+
 fn callout(ui: &mut egui::Ui, icon: &str, text: &str, error: bool) {
     let p = crate::theme::pal();
     let (bg, fg) = if error { (p.error_bg, p.error_text) } else { (p.warn_bg, p.warn_text) };
@@ -867,6 +919,10 @@ fn badge(ui: &mut egui::Ui, ok: Option<bool>, yes: &str, no: &str) {
 /// a test. Returns the suggested analysis when the user accepts it.
 fn data_check(ui: &mut egui::Ui, t: &DataTable, d: &mut AnalyzeDialog) -> Option<AnalysisKind> {
     use hg_stats::{descriptive, normality, outliers};
+    // Other tables are described by the overview: pooling their values per data set would mislead.
+    if t.kind != hg_core::TableKind::Column {
+        return None;
+    }
     let p = crate::theme::pal();
     ui.horizontal(|ui| {
         ui.add(crate::icons::image("shield-check", 18.0, p.accent));
